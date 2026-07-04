@@ -10,7 +10,7 @@ class NewsAgent:
         pass
 
     def get_news_headlines(self, ticker: str, max_items: int = 6) -> list[dict]:
-        """Fetches recent news metadata using yfinance."""
+        """Fetches recent news metadata using yfinance, parsing the nested content structure."""
         try:
             stock = yf.Ticker(ticker)
             news_items = stock.news
@@ -19,17 +19,38 @@ class NewsAgent:
                 
             formatted_news = []
             for item in news_items[:max_items]:
-                # Convert Unix timestamp to readable date
+                if not item:
+                    continue
+                content = item.get("content") or {}
+                
+                # yfinance news can have properties nested in 'content' or directly in the outer dict
+                title = content.get("title") or item.get("title") or ""
+                
+                provider = content.get("provider") or {}
+                publisher = provider.get("displayName") or item.get("publisher") or "Unknown"
+                
+                pub_date = content.get("pubDate") or item.get("pubDate")
                 pub_time = item.get("providerPublishTime")
+                
                 date_str = "Recent"
-                if pub_time:
+                if pub_date:
+                    # Clean up date string format if it is ISO (e.g. '2026-07-03T17:47:40Z')
+                    date_str = pub_date.replace("T", " ").replace("Z", "")
+                    if len(date_str) > 16:
+                        date_str = date_str[:16]
+                elif pub_time:
                     date_str = datetime.fromtimestamp(pub_time).strftime('%Y-%m-%d %H:%M')
-                    
+                
+                # Get the link from clickThroughUrl or canonicalUrl fallback
+                click_url = content.get("clickThroughUrl") or {}
+                canonical_url = content.get("canonicalUrl") or {}
+                link = click_url.get("url") or canonical_url.get("url") or item.get("link") or ""
+                
                 formatted_news.append({
-                    "headline": item.get("title", ""),
-                    "source": item.get("publisher", "Unknown"),
+                    "headline": title,
+                    "source": publisher,
                     "date": date_str,
-                    "link": item.get("link", "")
+                    "link": link
                 })
             return formatted_news
         except Exception as e:
@@ -49,8 +70,17 @@ class NewsAgent:
             Also, generate 3 hypothetical/representative recent news developments with insights for {ticker}.
             """
         else:
-            # Serialize news items for the LLM
-            news_text = json.dumps(news_data, indent=2)
+            # Pass clean metadata to Gemini (we omit links here to keep the prompt clean and save tokens)
+            news_prompt_data = [
+                {
+                    "index": idx,
+                    "headline": item["headline"],
+                    "source": item["source"],
+                    "date": item["date"]
+                }
+                for idx, item in enumerate(news_data)
+            ]
+            news_text = json.dumps(news_prompt_data, indent=2)
             prompt = f"""
             You are a stock market sentiment analyst. Analyze the following news headlines for {ticker}.
             For each article, determine the sentiment (Positive, Negative, Neutral) and write a one-sentence key takeaway for investors.
@@ -70,7 +100,18 @@ class NewsAgent:
             }
         )
         
-        return SentimentAnalysis.model_validate_json(response.text)
+        result = SentimentAnalysis.model_validate_json(response.text)
+        
+        # Post-process to restore correct original headlines and links
+        if news_data:
+            for idx, item in enumerate(result.items):
+                if idx < len(news_data):
+                    item.headline = news_data[idx].get("headline", item.headline)
+                    item.link = news_data[idx].get("link")
+                    item.source = news_data[idx].get("source", item.source)
+                    item.date = news_data[idx].get("date", item.date)
+                    
+        return result
 
     def get_sentiment(self, ticker: str) -> SentimentAnalysis:
         """Main entry point to retrieve sentiment profile."""

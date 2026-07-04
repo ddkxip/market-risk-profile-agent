@@ -112,6 +112,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('meta-timestamp').innerText = data.generated_at;
         document.getElementById('synthesis-summary').innerText = data.overall_summary;
 
+        // Set Yahoo Finance verification link
+        const yahooFinanceLink = document.getElementById('yahoo-finance-link');
+        if (yahooFinanceLink) {
+            yahooFinanceLink.href = `https://finance.yahoo.com/quote/${data.ticker}`;
+        }
+
         // KPI
         document.getElementById('kpi-price').innerText = `$${data.technical_indicators.current_price.toFixed(2)}`;
         
@@ -157,6 +163,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // SEC Summary & Factors
         document.getElementById('sec-risk-summary').innerText = data.risk_profile.summary;
+        
+        // Set SEC Filing link
+        const secFilingLink = document.getElementById('sec-filing-link');
+        if (secFilingLink && data.risk_profile.filing_url) {
+            secFilingLink.href = data.risk_profile.filing_url;
+            secFilingLink.classList.remove('hidden');
+        } else if (secFilingLink) {
+            secFilingLink.classList.add('hidden');
+        }
+
         const secContainer = document.getElementById('sec-factors-container');
         secContainer.innerHTML = '';
         
@@ -189,12 +205,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sentColor = item.sentiment.toLowerCase().includes('positive') ? 'sentiment-bullish' :
                                   (item.sentiment.toLowerCase().includes('negative') ? 'sentiment-bearish' : 'sentiment-neutral');
                 
+                // Display clickable headline if link is available
+                const headlineHtml = item.link 
+                    ? `<a href="${item.link}" target="_blank" class="news-item-title-link">${item.headline}</a>` 
+                    : item.headline;
+
                 newsItem.innerHTML = `
                     <div class="news-meta">
                         <span>${item.source} • ${item.date}</span>
                         <span class="impact-badge ${sentColor}">${item.sentiment}</span>
                     </div>
-                    <h4>${item.headline}</h4>
+                    <h4>${headlineHtml}</h4>
                     <div class="news-takeaway">
                         <strong>Takeaway:</strong> ${item.takeaway}
                     </div>

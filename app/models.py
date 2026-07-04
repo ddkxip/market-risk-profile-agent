@@ -14,6 +14,7 @@ class RiskProfile(BaseModel):
     overall_rating: str = Field(..., description="Overall risk rating (Low, Medium, High)")
     factors: List[RiskFactor] = Field(..., description="Key risk factors identified")
     summary: str = Field(..., description="Summarized explanation of the risk profile")
+    filing_url: Optional[str] = Field(None, description="URL to the SEC filing analyzed")
 
 class NewsSentimentItem(BaseModel):
     headline: str = Field(..., description="Headline of the news article")
@@ -21,6 +22,7 @@ class NewsSentimentItem(BaseModel):
     date: str = Field(..., description="Publication date or relative time")
     sentiment: str = Field(..., description="Sentiment of the article (Positive, Negative, Neutral)")
     takeaway: str = Field(..., description="One-sentence key takeaway for investors")
+    link: Optional[str] = Field(None, description="Direct URL link to the news article")
 
 class SentimentAnalysis(BaseModel):
     overall_sentiment: str = Field(..., description="Overall sentiment (Bullish, Bearish, Neutral)")

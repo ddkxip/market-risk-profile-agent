@@ -173,7 +173,17 @@ class SECAgent:
                 print(f"[{ticker}] Loading SEC risk profile from local cache...")
                 with open(cache_file, "r") as f:
                     cached_data = json.load(f)
-                return RiskProfile.model_validate(cached_data)
+                profile = RiskProfile.model_validate(cached_data)
+                
+                # If cached profile doesn't have filing_url, resolve and add it
+                if not profile.filing_url:
+                    cik = self.get_cik_from_ticker(ticker)
+                    if cik:
+                        profile.filing_url = f"https://www.sec.gov/edgar/browse/?CIK={cik}"
+                        # Save updated profile with url back to cache
+                        with open(cache_file, "w") as f_out:
+                            json.dump(profile.model_dump(), f_out, indent=2)
+                return profile
             except Exception as ce:
                 print(f"[{ticker}] Failed to load SEC cache: {ce}")
 
@@ -189,10 +199,17 @@ class SECAgent:
             
             raw_text = self.extract_risk_factors_text(filing_url)
             profile = self.analyze_risk_with_gemini(ticker, raw_text, form_type, filing_date)
+            profile.filing_url = filing_url
             
         except Exception as e:
             print(f"SEC direct fetch failed for {ticker} ({e}). Falling back to Gemini knowledge base...")
             profile = self.analyze_company_risks_fallback(ticker)
+            # Add fallback search link
+            cik = self.get_cik_from_ticker(ticker)
+            if cik:
+                profile.filing_url = f"https://www.sec.gov/edgar/browse/?CIK={cik}"
+            else:
+                profile.filing_url = f"https://www.sec.gov/edgar/searchedgar/companysearch"
 
         # Write to cache if profile was obtained
         if profile:
