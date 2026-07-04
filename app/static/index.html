@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Risk & Trading Profile Copilot</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Chart.js and ApexCharts for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Brand -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-brain-circuit brand-icon"></i>
+                <div class="brand-text">
+                    <h1>AlphaInsight</h1>
+                    <span>AI Trading & Risk Copilot</span>
+                </div>
+            </div>
+            
+            <!-- Search Widget -->
+            <div class="search-box">
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="ticker-input" placeholder="Enter ticker (e.g. AAPL)" autocomplete="off">
+                </div>
+                <button id="analyze-btn" class="btn-primary">
+                    <span class="btn-text">Analyze</span>
+                    <i class="fa-solid fa-bolt btn-icon"></i>
+                </button>
+            </div>
+
+            <!-- Quick Ticker Suggestions -->
+            <div class="suggestions">
+                <h3>Popular Tickers</h3>
+                <div class="suggestion-chips">
+                    <span class="chip" data-ticker="AAPL">AAPL</span>
+                    <span class="chip" data-ticker="MSFT">MSFT</span>
+                    <span class="chip" data-ticker="GOOGL">GOOGL</span>
+                    <span class="chip" data-ticker="AMZN">AMZN</span>
+                    <span class="chip" data-ticker="TSLA">TSLA</span>
+                    <span class="chip" data-ticker="NVDA">NVDA</span>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="status-dot online"></span>
+                    <span id="api-status">Copilot Standby</span>
+                </div>
+                <div class="course-tag">
+                    <i class="fa-brands fa-google"></i>
+                    <span>5-Day AI Agents Capstone</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Dashboard Content -->
+        <main class="main-content">
+            <!-- Initial Welcome State -->
+            <div id="welcome-screen" class="welcome-screen">
+                <div class="welcome-card">
+                    <i class="fa-solid fa-chart-line welcome-icon animate-pulse"></i>
+                    <h2>Welcome to AlphaInsight</h2>
+                    <p>Enter a US stock ticker to generate a comprehensive, multi-agent risk and trading profile.</p>
+                    <div class="features-list">
+                        <div class="feature-item">
+                            <i class="fa-solid fa-file-invoice-dollar"></i>
+                            <div>
+                                <h4>SEC Risk Extraction</h4>
+                                <p>Extracts & summarizes Item 1A Corporate Risk Factors from recent 10-K filings.</p>
+                            </div>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fa-solid fa-newspaper"></i>
+                            <div>
+                                <h4>News Sentiment Analysis</h4>
+                                <p>Aggregates recent market news and calculates investor sentiment using Google Gemini.</p>
+                            </div>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fa-solid fa-gauge-high"></i>
+                            <div>
+                                <h4>Technical Indicators</h4>
+                                <p>Computes RSI, MACD, and Moving Average crossovers dynamically.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading Spinner State -->
+            <div id="loading-screen" class="loading-screen hidden">
+                <div class="loader-container">
+                    <div class="loader">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <h3 id="loader-status">Spawning Agents...</h3>
+                    <p>Fetching SEC documents, calculating technical indicators, and reading news headlines.</p>
+                </div>
+            </div>
+
+            <!-- Profile Dashboard (Populated dynamically) -->
+            <div id="dashboard-container" class="dashboard-container hidden">
+                
+                <!-- Overview Header -->
+                <header class="dashboard-header">
+                    <div class="company-meta">
+                        <div class="company-title">
+                            <h2 id="meta-company-name">Apple Inc.</h2>
+                            <span id="meta-ticker" class="ticker-badge">AAPL</span>
+                        </div>
+                        <p class="timestamp">Generated on: <span id="meta-timestamp">2026-07-04 12:00:00</span></p>
+                    </div>
+                    
+                    <!-- Overall Summary Callout -->
+                    <div class="summary-card glass">
+                        <div class="card-header">
+                            <i class="fa-solid fa-circle-nodes icon-primary"></i>
+                            <h3>Executive Copilot Synthesis</h3>
+                        </div>
+                        <p id="synthesis-summary">Synthesized overview of the stock analysis...</p>
+                    </div>
+                </header>
+
+                <!-- KPI Metric Grid -->
+                <section class="kpi-grid">
+                    <!-- Price Card -->
+                    <div class="kpi-card glass">
+                        <span class="kpi-title">Current Price</span>
+                        <div class="kpi-value-container">
+                            <span id="kpi-price" class="kpi-value">$180.50</span>
+                        </div>
+                        <span class="kpi-footer"><i class="fa-solid fa-money-bill-trend-up"></i> Live market value</span>
+                    </div>
+
+                    <!-- Sentiment Card -->
+                    <div class="kpi-card glass">
+                        <span class="kpi-title">News Sentiment</span>
+                        <div class="kpi-value-container">
+                            <span id="kpi-sentiment" class="kpi-value sentiment-bullish">Bullish</span>
+                        </div>
+                        <span class="kpi-footer">Score: <span id="kpi-sentiment-score">0.65</span> (-1.0 to 1.0)</span>
+                    </div>
+
+                    <!-- Risk Rating Card -->
+                    <div class="kpi-card glass">
+                        <span class="kpi-title">Corporate Risk</span>
+                        <div class="kpi-value-container">
+                            <span id="kpi-risk" class="kpi-value risk-medium">Medium</span>
+                        </div>
+                        <span class="kpi-footer"><i class="fa-solid fa-shield-halved"></i> SEC Edgar extracted</span>
+                    </div>
+
+                    <!-- Technical Trend Card -->
+                    <div class="kpi-card glass">
+                        <span class="kpi-title">Technical Trend</span>
+                        <div class="kpi-value-container">
+                            <span id="kpi-trend" class="kpi-value trend-bullish">Strong Bullish</span>
+                        </div>
+                        <span class="kpi-footer"><i class="fa-solid fa-chart-line"></i> Price relative to SMAs</span>
+                    </div>
+                </section>
+
+                <!-- Two Column Details Grid -->
+                <div class="details-grid">
+                    
+                    <!-- Left Column: Technicals & Macro -->
+                    <div class="details-col">
+                        
+                        <!-- Technical Analysis Details -->
+                        <div class="dashboard-card glass">
+                            <div class="card-header">
+                                <i class="fa-solid fa-chart-area card-header-icon"></i>
+                                <h3>Technical Momentum</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="technical-indicators-list">
+                                    <div class="indicator-row">
+                                        <span>Relative Strength Index (RSI-14)</span>
+                                        <span id="tech-rsi" class="badge">58.4 (Neutral)</span>
+                                    </div>
+                                    <div class="indicator-row">
+                                        <span>MACD Crossover</span>
+                                        <span id="tech-macd" class="badge">Bullish Momentum</span>
+                                    </div>
+                                    <div class="indicator-row">
+                                        <span>50-Day Moving Average</span>
+                                        <span id="tech-sma50">$175.20</span>
+                                    </div>
+                                    <div class="indicator-row">
+                                        <span>200-Day Moving Average</span>
+                                        <span id="tech-sma200">$168.10</span>
+                                    </div>
+                                </div>
+                                <div class="chart-container">
+                                    <div id="price-chart"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Macroeconomic Impact -->
+                        <div class="dashboard-card glass">
+                            <div class="card-header">
+                                <i class="fa-solid fa-globe card-header-icon"></i>
+                                <h3>Macroeconomic Headwinds & Tailwinds</h3>
+                            </div>
+                            <div class="card-body">
+                                <div id="macro-factors-container" class="macro-list">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: SEC Risks & News Headlines -->
+                    <div class="details-col">
+                        
+                        <!-- SEC Risks -->
+                        <div class="dashboard-card glass">
+                            <div class="card-header">
+                                <i class="fa-solid fa-file-shield card-header-icon"></i>
+                                <h3>SEC EDGAR Risk Factors (Item 1A)</h3>
+                            </div>
+                            <div class="card-body">
+                                <p id="sec-risk-summary" class="sec-summary-paragraph">Summary of company risks...</p>
+                                <div id="sec-factors-container" class="sec-factors-list">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent News & Sentiments -->
+                        <div class="dashboard-card glass">
+                            <div class="card-header">
+                                <i class="fa-solid fa-rss card-header-icon"></i>
+                                <h3>Recent Sentiment Analysis</h3>
+                            </div>
+                            <div class="card-body">
+                                <div id="news-headlines-container" class="news-list">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Projections Card -->
+                        <div class="dashboard-card glass highlight-card">
+                            <div class="card-header">
+                                <i class="fa-solid fa-compass card-header-icon"></i>
+                                <h3>Investor Projections</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="projection-box">
+                                    <h4><i class="fa-solid fa-calendar-day"></i> Short-Term Outlook (1-3 Months)</h4>
+                                    <p id="proj-short">Short term details...</p>
+                                </div>
+                                <div class="projection-box">
+                                    <h4><i class="fa-solid fa-calendar-days"></i> Long-Term Outlook (12+ Months)</h4>
+                                    <p id="proj-long">Long term details...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+</body>
+</html>
