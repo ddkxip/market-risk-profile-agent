@@ -1,6 +1,9 @@
 import yfinance as yf
 from datetime import datetime
 import json
+import urllib.request
+import xml.etree.ElementTree as ET
+import email.utils
 from google import genai
 from app.config import get_gemini_client
 from app.models import SentimentAnalysis, NewsSentimentItem
@@ -9,39 +12,84 @@ class NewsAgent:
     def __init__(self):
         pass
 
-    def get_news_headlines(self, ticker: str, max_items: int = 6) -> list[dict]:
-        """Fetches recent news metadata using yfinance, parsing the nested content structure."""
+    def get_news_headlines(self, ticker: str, max_items: int = 8) -> list[dict]:
+        """Fetches recent news metadata for a ticker, prioritizing Google News search RSS and falling back to yfinance."""
+        ticker = ticker.upper().strip()
+        formatted_news = []
+        
+        # 1. Try Google News RSS search for highly company-specific stock news
+        try:
+            url = f"https://news.google.com/rss/search?q={ticker}+stock"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            
+            with urllib.request.urlopen(req) as response:
+                xml_data = response.read()
+                
+            root = ET.fromstring(xml_data)
+            items = root.findall('.//item')
+            
+            for item in items[:max_items]:
+                title_text = item.find('title').text or ""
+                source_text = item.find('source').text if item.find('source') is not None else "Google News"
+                link = item.find('link').text or ""
+                pub_date = item.find('pubDate').text
+                
+                # Format date cleanly using email.utils to parse RFC 822 format
+                date_str = "Recent"
+                if pub_date:
+                    try:
+                        dt = email.utils.parsedate_to_datetime(pub_date)
+                        date_str = dt.strftime('%Y-%m-%d %H:%M')
+                    except Exception:
+                        date_str = pub_date
+                
+                # Clean up headline by removing the trailing source (e.g. " - Yahoo Finance")
+                if title_text.endswith(f" - {source_text}"):
+                    headline = title_text[:-len(f" - {source_text}")]
+                else:
+                    parts = title_text.rsplit(" - ", 1)
+                    headline = parts[0] if len(parts) > 1 else title_text
+                    
+                formatted_news.append({
+                    "headline": headline,
+                    "source": source_text,
+                    "date": date_str,
+                    "link": link
+                })
+                
+            if formatted_news:
+                print(f"[{ticker}] Retrieved {len(formatted_news)} company-specific news articles from Google News RSS.")
+                return formatted_news
+                
+        except Exception as ge:
+            print(f"Google News RSS fetch failed for {ticker}: {ge}. Falling back to yfinance news feed...")
+            
+        # 2. Fallback to yfinance news feed if Google News search fails
         try:
             stock = yf.Ticker(ticker)
             news_items = stock.news
             if not news_items:
                 return []
                 
-            formatted_news = []
             for item in news_items[:max_items]:
                 if not item:
                     continue
                 content = item.get("content") or {}
                 
-                # yfinance news can have properties nested in 'content' or directly in the outer dict
                 title = content.get("title") or item.get("title") or ""
-                
                 provider = content.get("provider") or {}
                 publisher = provider.get("displayName") or item.get("publisher") or "Unknown"
-                
                 pub_date = content.get("pubDate") or item.get("pubDate")
                 pub_time = item.get("providerPublishTime")
                 
                 date_str = "Recent"
                 if pub_date:
-                    # Clean up date string format if it is ISO (e.g. '2026-07-03T17:47:40Z')
                     date_str = pub_date.replace("T", " ").replace("Z", "")
                     if len(date_str) > 16:
                         date_str = date_str[:16]
                 elif pub_time:
                     date_str = datetime.fromtimestamp(pub_time).strftime('%Y-%m-%d %H:%M')
                 
-                # Get the link from clickThroughUrl or canonicalUrl fallback
                 click_url = content.get("clickThroughUrl") or {}
                 canonical_url = content.get("canonicalUrl") or {}
                 link = click_url.get("url") or canonical_url.get("url") or item.get("link") or ""
@@ -52,9 +100,10 @@ class NewsAgent:
                     "date": date_str,
                     "link": link
                 })
+            print(f"[{ticker}] Retrieved {len(formatted_news)} news articles from yfinance fallback feed.")
             return formatted_news
         except Exception as e:
-            print(f"Error fetching news for {ticker}: {e}")
+            print(f"Error fetching yfinance news fallback for {ticker}: {e}")
             return []
 
     def analyze_sentiment_with_gemini(self, ticker: str, news_data: list[dict]) -> SentimentAnalysis:
