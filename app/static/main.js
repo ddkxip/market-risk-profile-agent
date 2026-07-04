@@ -603,23 +603,19 @@ document.addEventListener('DOMContentLoaded', () => {
             filename:     `${data.ticker}_investment_report.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0a0d14' },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
         };
         
         const btn = document.getElementById('export-report-btn');
-        btn.style.opacity = '0.3';
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF...';
+        // Hide button completely from PDF capture
+        btn.style.display = 'none';
         
         html2pdf().from(element).set(opt).save().then(() => {
-            btn.style.opacity = '1';
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Export Report';
+            btn.style.display = 'inline-flex';
         }).catch(err => {
             console.error("PDF generation failed, falling back to markdown:", err);
-            btn.style.opacity = '1';
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Export Report';
+            btn.style.display = 'inline-flex';
             // Fallback to markdown download
             exportSingleReport(data);
         });
@@ -634,23 +630,19 @@ document.addEventListener('DOMContentLoaded', () => {
             filename:     `${data.profile_a.ticker}_vs_${data.profile_b.ticker}_comparison_report.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0a0d14' },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
         };
         
         const btn = document.getElementById('export-comparison-btn');
-        btn.style.opacity = '0.3';
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF...';
+        // Hide button completely from PDF capture
+        btn.style.display = 'none';
         
         html2pdf().from(element).set(opt).save().then(() => {
-            btn.style.opacity = '1';
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Export Report';
+            btn.style.display = 'inline-flex';
         }).catch(err => {
             console.error("PDF generation failed, falling back to markdown:", err);
-            btn.style.opacity = '1';
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Export Report';
+            btn.style.display = 'inline-flex';
             // Fallback to markdown download
             exportComparisonReport(data);
         });

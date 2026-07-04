@@ -1005,3 +1005,24 @@ input:checked + .slider:before {
     padding: 0.5rem;
 }
 
+/* Explicit solid dark background for PDF capture */
+.dashboard-container, .comparison-container {
+    background-color: #0a0d14 !important;
+    padding: 1.5rem !important;
+    border-radius: 16px !important;
+}
+
+/* Avoid cutting cards and charts across page breaks in PDF */
+.dashboard-card, 
+.summary-card, 
+.sec-factor-card, 
+.news-item, 
+.macro-item,
+.comparison-charts-section,
+.comparison-news-section,
+.kpi-grid,
+.compare-table {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+}
+
