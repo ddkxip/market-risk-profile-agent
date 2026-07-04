@@ -2,7 +2,7 @@ import sys
 import argparse
 from dotenv import load_dotenv
 from app.agents.coordinator import CoordinatorAgent
-from app.config import GEMINI_API_KEY
+from app.config import get_gemini_client
 
 def main():
     load_dotenv()
@@ -11,9 +11,11 @@ def main():
     parser.add_argument("ticker", type=str, help="Stock ticker symbol (e.g. AAPL, MSFT)")
     args = parser.parse_args()
     
-    if not GEMINI_API_KEY:
-        print("WARNING: GEMINI_API_KEY is not set in environment or .env file.")
-        print("Please set it before running this script.")
+    try:
+        get_gemini_client()
+    except ValueError as e:
+        print(f"WARNING: Gemini client configuration error: {e}")
+        print("Please configure credentials before running this script.")
         sys.exit(1)
         
     ticker = args.ticker.upper().strip()

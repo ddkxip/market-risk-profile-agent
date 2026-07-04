@@ -1,12 +1,17 @@
 from datetime import datetime
 import yfinance as yf
 from google import genai
+from pydantic import BaseModel, Field
 from app.config import get_gemini_client
 from app.models import CompanyProfileResponse, Projections
 from app.agents.market_data_agent import MarketDataAgent
 from app.agents.sec_agent import SECAgent
 from app.agents.news_agent import NewsAgent
 from app.agents.macro_agent import MacroAgent
+
+class SynthesizedFields(BaseModel):
+    overall_summary: str = Field(..., description="High-level investor summary")
+    projections: Projections = Field(..., description="Short-term and long-term outlooks")
 
 class CoordinatorAgent:
     def __init__(self):
@@ -102,17 +107,6 @@ class CoordinatorAgent:
 
         # We request Gemini to return the synthesized part conforming to our schema.
         # Since we want to return a complete CompanyProfileResponse, we will populate the sub-fields using our already calculated objects.
-        class SynthesisResponse(BaseModel := type('SynthesisResponse', (), {})):
-            # We can use a small Pydantic model for just the synthesized fields
-            from pydantic import BaseModel, Field
-            class SynthesizedFields(BaseModel):
-                overall_summary: str = Field(..., description="High-level investor summary")
-                projections: Projections = Field(..., description="Short-term and long-term outlooks")
-            
-        from pydantic import BaseModel, Field
-        class SynthesizedFields(BaseModel):
-            overall_summary: str = Field(..., description="High-level investor summary")
-            projections: Projections = Field(..., description="Short-term and long-term outlooks")
 
         response = client.models.generate_content(
             model='gemini-2.5-flash',
