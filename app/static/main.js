@@ -230,35 +230,50 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('proj-long').innerText = data.projections.long_term;
 
         // Render Apex Chart
-        renderPriceChart(data.technical_indicators);
+        renderPriceChart(data.historical_data, data.technical_indicators);
     }
 
     // Render stock technical chart
     let priceChartInstance = null;
-    function renderPriceChart(technicals) {
-        const currentPrice = technicals.current_price;
-        const sma50 = technicals.sma_50;
-        const sma200 = technicals.sma_200;
-        
-        // Generate simulated price points over 30 days to visualize SMA trends ending at current levels
+    function renderPriceChart(historicalData, technicals) {
         const dates = [];
         const prices = [];
         const sma50Series = [];
         const sma200Series = [];
         
-        const now = new Date();
-        for (let i = 29; i >= 0; i--) {
-            const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-            dates.push(date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
-            
-            // Build progressive chart curves merging into the final outputs
-            const ratio = (30 - i) / 30;
-            const simulatedPrice = sma200 + (currentPrice - sma200) * ratio + (Math.sin(i / 2) * (currentPrice * 0.02));
-            prices.push(parseFloat(simulatedPrice.toFixed(2)));
-            
-            const simulatedSma50 = sma200 + (sma50 - sma200) * ratio;
-            sma50Series.push(parseFloat(simulatedSma50.toFixed(2)));
-            sma200Series.push(parseFloat(sma200.toFixed(2)));
+        if (historicalData && historicalData.length > 0) {
+            historicalData.forEach(point => {
+                // Point date is YYYY-MM-DD. We parse it to local short date format
+                // split by hyphen to prevent timezone offsets
+                const parts = point.date.split('-');
+                let dateLabel = point.date;
+                if (parts.length === 3) {
+                    const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                    dateLabel = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                }
+                dates.push(dateLabel);
+                prices.push(point.close);
+                sma50Series.push(point.sma_50);
+                sma200Series.push(point.sma_200);
+            });
+        } else {
+            // Fallback to simulated if no data returned
+            const currentPrice = technicals.current_price;
+            const sma50 = technicals.sma_50;
+            const sma200 = technicals.sma_200;
+            const now = new Date();
+            for (let i = 29; i >= 0; i--) {
+                const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+                dates.push(date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+                
+                const ratio = (30 - i) / 30;
+                const simulatedPrice = sma200 + (currentPrice - sma200) * ratio + (Math.sin(i / 2) * (currentPrice * 0.02));
+                prices.push(parseFloat(simulatedPrice.toFixed(2)));
+                
+                const simulatedSma50 = sma200 + (sma50 - sma200) * ratio;
+                sma50Series.push(parseFloat(simulatedSma50.toFixed(2)));
+                sma200Series.push(parseFloat(sma200.toFixed(2)));
+            }
         }
 
         const options = {

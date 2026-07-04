@@ -28,13 +28,46 @@ class CoordinatorAgent:
         except Exception:
             return ticker
 
+    def resolve_ticker(self, query: str) -> str:
+        """Attempts to resolve a company name query to a valid ticker using SEC tickers database."""
+        query_clean = query.upper().strip()
+        if not query_clean:
+            return query
+            
+        # If it looks like a standard ticker (1-5 alphabetical characters), use it directly
+        if query_clean.isalpha() and 1 <= len(query_clean) <= 5:
+            return query_clean
+            
+        try:
+            import urllib.request
+            import json
+            
+            headers = {"User-Agent": "MarketRiskAgent/1.0 (ddkxi@gemini-capstone.com)"}
+            url = "https://www.sec.gov/files/company_tickers.json"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                
+            for company in data.values():
+                title = company.get('title', '').upper()
+                ticker_symbol = company.get('ticker', '').upper()
+                
+                # Check for substring match (e.g. "APPLE" matches "APPLE INC")
+                if query_clean in title or title in query_clean:
+                    print(f"[Resolver] Resolved '{query}' to ticker '{ticker_symbol}'")
+                    return ticker_symbol
+        except Exception as e:
+            print(f"Error in ticker resolver: {e}")
+            
+        return query_clean
+
     def generate_profile(self, ticker: str, custom_company_name: str = None) -> CompanyProfileResponse:
-        ticker = ticker.upper().strip()
+        ticker = self.resolve_ticker(ticker)
         print(f"[{ticker}] Starting profile synthesis...")
 
         # 1. Gather all sub-agent data
         # Technical indicators
-        tech_data = self.market_agent.get_indicators(ticker)
+        tech_data, historical_data = self.market_agent.get_indicators(ticker)
         print(f"[{ticker}] Market technicals retrieved.")
 
         # SEC risk profile
@@ -130,5 +163,6 @@ class CoordinatorAgent:
             sentiment_analysis=sentiment_data,
             technical_indicators=tech_data,
             macro_factors=macro_data,
-            projections=synthesis.projections
+            projections=synthesis.projections,
+            historical_data=historical_data
         )

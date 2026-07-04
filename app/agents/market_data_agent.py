@@ -1,7 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from app.models import TechnicalIndicatorValues
+from app.models import TechnicalIndicatorValues, HistoricalPricePoint
 
 class MarketDataAgent:
     def __init__(self):
@@ -21,7 +21,7 @@ class MarketDataAgent:
         signal = macd.ewm(span=9, adjust=False).mean()
         return macd, signal
 
-    def get_indicators(self, ticker: str) -> TechnicalIndicatorValues:
+    def get_indicators(self, ticker: str) -> tuple[TechnicalIndicatorValues, list[HistoricalPricePoint]]:
         # Fetch 1 year of daily historical data to compute indicators accurately (e.g. 200 SMA)
         stock = yf.Ticker(ticker)
         df = stock.history(period="1y")
@@ -78,7 +78,24 @@ class MarketDataAgent:
         else:
             macd_status = "Bearish Momentum"
 
-        return TechnicalIndicatorValues(
+        # Get last 30 trading days of historical data for charting
+        last_30_df = df.tail(30)
+        historical_points = []
+        for index, row in last_30_df.iterrows():
+            date_str = index.strftime("%Y-%m-%d")
+            close_val = float(row["Close"])
+            sma_50_row = float(row["SMA_50"]) if not pd.isna(row["SMA_50"]) else None
+            sma_200_row = float(row["SMA_200"]) if not pd.isna(row["SMA_200"]) else None
+            historical_points.append(
+                HistoricalPricePoint(
+                    date=date_str,
+                    close=round(close_val, 2),
+                    sma_50=round(sma_50_row, 2) if sma_50_row is not None else None,
+                    sma_200=round(sma_200_row, 2) if sma_200_row is not None else None
+                )
+            )
+
+        indicators = TechnicalIndicatorValues(
             current_price=round(current_price, 2),
             rsi_14=round(rsi_val, 2),
             rsi_status=rsi_status,
@@ -89,3 +106,5 @@ class MarketDataAgent:
             sma_200=round(sma_200_val, 2),
             trend_status=trend_status
         )
+
+        return indicators, historical_points

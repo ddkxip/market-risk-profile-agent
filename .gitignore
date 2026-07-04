@@ -42,3 +42,6 @@ build/
 # System
 .DS_Store
 Thumbs.db
+
+# Local cache
+.cache/

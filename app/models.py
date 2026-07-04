@@ -47,6 +47,12 @@ class Projections(BaseModel):
     short_term: str = Field(..., description="Short-term outlook (1-3 months) projection and reasoning")
     long_term: str = Field(..., description="Long-term outlook (12+ months) projection and reasoning")
 
+class HistoricalPricePoint(BaseModel):
+    date: str = Field(..., description="Date (YYYY-MM-DD) or label for the data point")
+    close: float = Field(..., description="Closing price of the stock")
+    sma_50: Optional[float] = Field(None, description="50-day Simple Moving Average")
+    sma_200: Optional[float] = Field(None, description="200-day Simple Moving Average")
+
 class CompanyProfileResponse(BaseModel):
     ticker: str = Field(..., description="Stock ticker symbol")
     company_name: str = Field(..., description="Full name of the company")
@@ -57,3 +63,4 @@ class CompanyProfileResponse(BaseModel):
     technical_indicators: TechnicalIndicatorValues = Field(..., description="Calculated technical indicators")
     macro_factors: List[MacroeconomicFactors] = Field(..., description="Macroeconomic headwinds and tailwinds")
     projections: Projections = Field(..., description="Short-term and long-term outlooks")
+    historical_data: List[HistoricalPricePoint] = Field(default=[], description="Historical stock prices and moving averages for charting")

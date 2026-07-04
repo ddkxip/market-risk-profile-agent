@@ -159,6 +159,26 @@ class SECAgent:
 
     def get_risk_profile(self, ticker: str) -> RiskProfile:
         """Main entry point to retrieve risk profile."""
+        import os
+        
+        # Resolve cache path
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        cache_dir = os.path.join(base_dir, ".cache", "sec")
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_file = os.path.join(cache_dir, f"{ticker.lower()}_profile.json")
+        
+        # Try loading from cache
+        if os.path.exists(cache_file):
+            try:
+                print(f"[{ticker}] Loading SEC risk profile from local cache...")
+                with open(cache_file, "r") as f:
+                    cached_data = json.load(f)
+                return RiskProfile.model_validate(cached_data)
+            except Exception as ce:
+                print(f"[{ticker}] Failed to load SEC cache: {ce}")
+
+        # If not cached, fetch and compute
+        profile = None
         try:
             cik = self.get_cik_from_ticker(ticker)
             if not cik:
@@ -168,8 +188,18 @@ class SECAgent:
             print(f"Fetching SEC filing for {ticker} from {filing_url}...")
             
             raw_text = self.extract_risk_factors_text(filing_url)
-            return self.analyze_risk_with_gemini(ticker, raw_text, form_type, filing_date)
+            profile = self.analyze_risk_with_gemini(ticker, raw_text, form_type, filing_date)
             
         except Exception as e:
             print(f"SEC direct fetch failed for {ticker} ({e}). Falling back to Gemini knowledge base...")
-            return self.analyze_company_risks_fallback(ticker)
+            profile = self.analyze_company_risks_fallback(ticker)
+
+        # Write to cache if profile was obtained
+        if profile:
+            try:
+                with open(cache_file, "w") as f:
+                    json.dump(profile.model_dump(), f, indent=2)
+            except Exception as ce:
+                print(f"[{ticker}] Failed to write SEC cache: {ce}")
+
+        return profile
