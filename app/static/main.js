@@ -377,7 +377,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sentColor = item.sentiment.toLowerCase().includes('positive') ? 'sentiment-bullish' :
                                   (item.sentiment.toLowerCase().includes('negative') ? 'sentiment-bearish' : 'sentiment-neutral');
                 
-                // Display clickable headline if link is available
                 const headlineHtml = item.link 
                     ? `<a href="${item.link}" target="_blank" class="news-item-title-link">${item.headline}</a>` 
                     : item.headline;
@@ -423,7 +422,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('proj-long').innerText = data.projections.long_term;
 
         // Render Apex Chart
-        renderPriceChart(data.historical_data, data.technical_indicators);
+        priceChartInstance = renderSingleChart(
+            "price-chart", 
+            data.historical_data, 
+            data.technical_indicators, 
+            ['#6366f1', '#10b981', '#f59e0b'], 
+            priceChartInstance
+        );
     }
 
     // Populate Comparison Dashboard
@@ -514,12 +519,145 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             secLinkB.style.display = 'none';
         }
+
+        // Render News side-by-side
+        document.getElementById('news-title-a').innerText = `${profileA.company_name} News`;
+        const newsContainerA = document.getElementById('compare-news-a');
+        populateComparisonNewsColumn(newsContainerA, profileA.sentiment_analysis.items);
+
+        document.getElementById('news-title-b').innerText = `${profileB.company_name} News`;
+        const newsContainerB = document.getElementById('compare-news-b');
+        populateComparisonNewsColumn(newsContainerB, profileB.sentiment_analysis.items);
+
+        // Render Charts side-by-side
+        renderComparisonCharts(data);
     }
 
-    // Export Reports as Markdown Files
-    function exportSingleReport(data) {
+    // Populate comparison news column
+    function populateComparisonNewsColumn(container, items) {
+        container.innerHTML = '';
+        if (items && items.length > 0) {
+            items.forEach(item => {
+                const newsItem = document.createElement('div');
+                newsItem.className = 'news-item';
+                
+                const sentColor = item.sentiment.toLowerCase().includes('positive') ? 'sentiment-bullish' :
+                                  (item.sentiment.toLowerCase().includes('negative') ? 'sentiment-bearish' : 'sentiment-neutral');
+                
+                const headlineHtml = item.link 
+                    ? `<a href="${item.link}" target="_blank" class="news-item-title-link" style="font-size: 0.9rem;">${item.headline}</a>` 
+                    : `<span style="font-size: 0.9rem;">${item.headline}</span>`;
+
+                newsItem.innerHTML = `
+                    <div class="news-meta" style="margin-bottom: 0.25rem;">
+                        <span style="font-size: 0.75rem;">${item.source} • ${item.date}</span>
+                        <span class="impact-badge ${sentColor}" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;">${item.sentiment}</span>
+                    </div>
+                    <h4 style="font-size: 0.9rem; margin-bottom: 0.25rem;">${headlineHtml}</h4>
+                    <div class="news-takeaway" style="font-size: 0.8rem; padding: 0.4rem; border-radius: 6px; background: rgba(255,255,255,0.02);">
+                        <strong>Takeaway:</strong> ${item.takeaway}
+                    </div>
+                `;
+                container.appendChild(newsItem);
+            });
+        } else {
+            container.innerHTML = '<p class="text-muted" style="font-size: 0.85rem;">No recent news headlines available.</p>';
+        }
+    }
+
+    // Render comparison charts
+    let compareChartAInstance = null;
+    let compareChartBInstance = null;
+
+    function renderComparisonCharts(data) {
+        const profileA = data.profile_a;
+        const profileB = data.profile_b;
+        
+        document.getElementById('chart-title-a').innerText = `${profileA.company_name} Price Trend`;
+        document.getElementById('chart-title-b').innerText = `${profileB.company_name} Price Trend`;
+        
+        compareChartAInstance = renderSingleChart(
+            "compare-chart-a", 
+            profileA.historical_data, 
+            profileA.technical_indicators, 
+            ['#6366f1', '#10b981', '#f59e0b'],
+            compareChartAInstance
+        );
+        
+        compareChartBInstance = renderSingleChart(
+            "compare-chart-b", 
+            profileB.historical_data, 
+            profileB.technical_indicators, 
+            ['#a855f7', '#10b981', '#f59e0b'],
+            compareChartBInstance
+        );
+    }
+
+    // Export PDF Report (Html2pdf integration)
+    function exportSingleReportPDF(data) {
         if (!data) return;
         
+        const element = document.getElementById('dashboard-container');
+        const opt = {
+            margin:       12,
+            filename:     `${data.ticker}_investment_report.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0a0d14' },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        
+        const btn = document.getElementById('export-report-btn');
+        btn.style.opacity = '0.3';
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF...';
+        
+        html2pdf().from(element).set(opt).save().then(() => {
+            btn.style.opacity = '1';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Export Report';
+        }).catch(err => {
+            console.error("PDF generation failed, falling back to markdown:", err);
+            btn.style.opacity = '1';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Export Report';
+            // Fallback to markdown download
+            exportSingleReport(data);
+        });
+    }
+
+    function exportComparisonReportPDF(data) {
+        if (!data) return;
+        
+        const element = document.getElementById('comparison-container');
+        const opt = {
+            margin:       12,
+            filename:     `${data.profile_a.ticker}_vs_${data.profile_b.ticker}_comparison_report.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0a0d14' },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        
+        const btn = document.getElementById('export-comparison-btn');
+        btn.style.opacity = '0.3';
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating PDF...';
+        
+        html2pdf().from(element).set(opt).save().then(() => {
+            btn.style.opacity = '1';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Export Report';
+        }).catch(err => {
+            console.error("PDF generation failed, falling back to markdown:", err);
+            btn.style.opacity = '1';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> Export Report';
+            // Fallback to markdown download
+            exportComparisonReport(data);
+        });
+    }
+
+    // Markdown Exporter Fallbacks
+    function exportSingleReport(data) {
         let md = `# Investment & Risk Report: ${data.company_name} (${data.ticker})\n`;
         md += `Generated on: ${data.generated_at}\n\n`;
         md += `## 1. Executive Summary\n${data.overall_summary}\n\n`;
@@ -530,26 +668,18 @@ document.addEventListener('DOMContentLoaded', () => {
         md += `- **MACD**: ${data.technical_indicators.macd_value} (Status: ${data.technical_indicators.macd_status})\n`;
         md += `- **50 SMA**: $${data.technical_indicators.sma_50}\n`;
         md += `- **200 SMA**: $${data.technical_indicators.sma_200}\n\n`;
-        md += `## 3. Corporate Risk Factors (SEC Edgar Extracted)\n`;
+        md += `## 3. Corporate Risk Factors\n`;
         md += `**Overall Risk Rating**: ${data.risk_profile.overall_rating}\n\n`;
         md += `**Summary**: ${data.risk_profile.summary}\n\n`;
         data.risk_profile.factors.forEach(factor => {
             md += `### [${factor.category} | Severity: ${factor.severity}]\n${factor.description}\n\n`;
         });
-        if (data.risk_profile.filing_url) {
-            md += `*Source Filing: ${data.risk_profile.filing_url}*\n\n`;
-        }
         md += `## 4. News & Sentiment Analysis\n`;
         md += `- **Overall Sentiment**: ${data.sentiment_analysis.overall_sentiment}\n`;
         md += `- **Sentiment Score**: ${data.sentiment_analysis.score} (-1.0 to 1.0)\n\n`;
-        md += `### Key News Articles:\n`;
         data.sentiment_analysis.items.forEach(item => {
             md += `- **${item.headline}** (${item.source} • ${item.date})\n`;
-            md += `  *Takeaway*: ${item.takeaway}\n`;
-            if (item.link) {
-                md += `  *Link*: ${item.link}\n`;
-            }
-            md += `\n`;
+            md += `  *Takeaway*: ${item.takeaway}\n\n`;
         });
         md += `## 5. Macroeconomic Influences\n`;
         data.macro_factors.forEach(factor => {
@@ -558,13 +688,11 @@ document.addEventListener('DOMContentLoaded', () => {
         md += `## 6. Projections & Outlook\n`;
         md += `### Short-Term Outlook (1-3 Months)\n${data.projections.short_term}\n\n`;
         md += `### Long-Term Outlook (12+ Months)\n${data.projections.long_term}\n\n`;
-        md += `--- \n*Generated by AlphaInsight AI Trading & Risk Copilot*`;
         
         triggerFileDownload(`${data.ticker}_investment_report.md`, md);
     }
 
     function exportComparisonReport(data) {
-        if (!data) return;
         const profileA = data.profile_a;
         const profileB = data.profile_b;
         
@@ -572,23 +700,12 @@ document.addEventListener('DOMContentLoaded', () => {
         md += `Generated on: ${data.generated_at}\n\n`;
         md += `## 1. Gemini Comparison Summary\n${data.comparative_summary}\n\n`;
         md += `## 2. Investment Recommendation\n${data.better_investment}\n\n`;
-        md += `## 3. Side-by-Side Comparison Metrics\n\n`;
         md += `| Metric | ${profileA.ticker} | ${profileB.ticker} |\n`;
         md += `| --- | --- | --- |\n`;
         md += `| **Company Name** | ${profileA.company_name} | ${profileB.company_name} |\n`;
         md += `| **Current Price** | $${profileA.technical_indicators.current_price} | $${profileB.technical_indicators.current_price} |\n`;
-        md += `| **Technical Trend** | ${profileA.technical_indicators.trend_status} | ${profileB.technical_indicators.trend_status} |\n`;
-        md += `| **RSI (14)** | ${profileA.technical_indicators.rsi_14} (${profileA.technical_indicators.rsi_status}) | ${profileB.technical_indicators.rsi_14} (${profileB.technical_indicators.rsi_status}) |\n`;
-        md += `| **MACD Status** | ${profileA.technical_indicators.macd_status} | ${profileB.technical_indicators.macd_status} |\n`;
-        md += `| **50 SMA** | $${profileA.technical_indicators.sma_50} | $${profileB.technical_indicators.sma_50} |\n`;
-        md += `| **200 SMA** | $${profileA.technical_indicators.sma_200} | $${profileB.technical_indicators.sma_200} |\n`;
         md += `| **Overall Risk Rating** | ${profileA.risk_profile.overall_rating} | ${profileB.risk_profile.overall_rating} |\n`;
         md += `| **Sentiment Score** | ${profileA.sentiment_analysis.score} | ${profileB.sentiment_analysis.score} |\n`;
-        md += `| **Sentiment Class** | ${profileA.sentiment_analysis.overall_sentiment} | ${profileB.sentiment_analysis.overall_sentiment} |\n\n`;
-        md += `## 4. Single Profiles Overview\n\n`;
-        md += `### ${profileA.company_name} Summary:\n${profileA.overall_summary}\n\n`;
-        md += `### ${profileB.company_name} Summary:\n${profileB.overall_summary}\n\n`;
-        md += `--- \n*Generated by AlphaInsight AI Trading & Risk Copilot*`;
         
         triggerFileDownload(`${profileA.ticker}_vs_${profileB.ticker}_comparison_report.md`, md);
     }
@@ -603,18 +720,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(element);
     }
 
-    // Export button events
+    // Export button events - Trigger PDF generation
     document.getElementById('export-report-btn').addEventListener('click', () => {
-        exportSingleReport(currentSingleData);
+        exportSingleReportPDF(currentSingleData);
     });
 
     document.getElementById('export-comparison-btn').addEventListener('click', () => {
-        exportComparisonReport(currentCompareData);
+        exportComparisonReportPDF(currentCompareData);
     });
 
-    // Render stock price chart using historical price series
+    // Unified Charting Function
     let priceChartInstance = null;
-    function renderPriceChart(historicalData, technicals) {
+    function renderSingleChart(elementId, historicalData, technicals, colors, existingInstance) {
         const dates = [];
         const prices = [];
         const sma50Series = [];
@@ -634,7 +751,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 sma200Series.push(point.sma_200);
             });
         } else {
-            // Fallback simulated prices if no historical data is returned
             const currentPrice = technicals.current_price;
             const sma50 = technicals.sma_50;
             const sma200 = technicals.sma_200;
@@ -672,14 +788,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ],
             chart: {
-                height: 220,
+                height: 200,
                 type: 'line',
                 background: 'transparent',
                 toolbar: {
                     show: false
                 }
             },
-            colors: ['#6366f1', '#10b981', '#f59e0b'],
+            colors: colors,
             fill: {
                 type: 'solid',
                 opacity: [0.1, 1, 1],
@@ -727,14 +843,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        const chartElement = document.getElementById("price-chart");
+        const chartElement = document.getElementById(elementId);
         
-        if (priceChartInstance) {
-            priceChartInstance.destroy();
+        if (existingInstance) {
+            existingInstance.destroy();
         }
         
         chartElement.innerHTML = '';
-        priceChartInstance = new ApexCharts(chartElement, options);
-        priceChartInstance.render();
+        const chartInstance = new ApexCharts(chartElement, options);
+        chartInstance.render();
+        return chartInstance;
     }
 });

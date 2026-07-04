@@ -116,7 +116,7 @@ body {
     font-size: 1rem;
 }
 
-#ticker-input {
+#ticker-input, #ticker-a-input, #ticker-b-input {
     width: 100%;
     padding: 0.85rem 1rem 0.85rem 2.75rem;
     background-color: rgba(10, 13, 20, 0.5);
@@ -128,10 +128,16 @@ body {
     transition: var(--transition-smooth);
 }
 
-#ticker-input:focus {
+#ticker-input:focus, #ticker-a-input:focus {
     outline: none;
     border-color: var(--accent-primary);
     box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+#ticker-b-input:focus {
+    outline: none;
+    border-color: var(--accent-secondary);
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
 }
 
 .btn-primary {
