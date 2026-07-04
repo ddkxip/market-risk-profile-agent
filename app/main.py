@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.models import AnalysisRequest, CompanyProfileResponse
 from app.agents.coordinator import CoordinatorAgent
-from app.config import GEMINI_API_KEY
+from app.config import GEMINI_API_KEY, get_gemini_client
 import sys
 import os
 
@@ -34,10 +34,13 @@ coordinator = CoordinatorAgent()
 # API Endpoint
 @app.post("/api/analyze", response_model=CompanyProfileResponse)
 async def analyze_company(request: AnalysisRequest):
-    if not GEMINI_API_KEY:
+    try:
+        # Validate that client can be initialized
+        get_gemini_client()
+    except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail="GEMINI_API_KEY is not set on the server. Please add it to your configuration."
+            detail=f"Gemini credentials verification failed: {str(e)}"
         )
         
     try:
