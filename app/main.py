@@ -3,8 +3,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.models import AnalysisRequest, CompanyProfileResponse
+from app.models import AnalysisRequest, CompanyProfileResponse, ComparisonRequest, ComparisonResponse
 from app.agents.coordinator import CoordinatorAgent
+from app.agents.comparison_agent import ComparisonAgent
 from app.config import GEMINI_API_KEY, get_gemini_client
 import sys
 import os
@@ -28,8 +29,9 @@ app.add_middleware(
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_dir = os.path.join(current_dir, "static")
 
-# Initialize Coordinator
+# Initialize Coordinator and Comparison Agents
 coordinator = CoordinatorAgent()
+comparison_agent = ComparisonAgent()
 
 # API Endpoint
 @app.post("/api/analyze", response_model=CompanyProfileResponse)
@@ -54,6 +56,30 @@ async def analyze_company(request: AnalysisRequest):
         raise HTTPException(
             status_code=500,
             detail=f"An error occurred while compiling the profile: {str(e)}"
+        )
+
+@app.post("/api/compare", response_model=ComparisonResponse)
+async def compare_companies(request: ComparisonRequest):
+    try:
+        # Validate that client can be initialized
+        get_gemini_client()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gemini credentials verification failed: {str(e)}"
+        )
+        
+    try:
+        comparison = comparison_agent.compare_companies(
+            ticker_a=request.ticker_a,
+            ticker_b=request.ticker_b
+        )
+        return comparison
+    except Exception as e:
+        print(f"Error during comparison: {e}", file=sys.stderr)
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while compiling the comparison: {str(e)}"
         )
 
 # Serve Frontend Static Files

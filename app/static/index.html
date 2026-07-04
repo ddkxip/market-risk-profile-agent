@@ -27,16 +27,50 @@
                 </div>
             </div>
             
+            <!-- Mode Switcher -->
+            <div class="mode-switcher">
+                <span class="mode-label active" id="mode-single">Single Stock</span>
+                <label class="switch">
+                    <input type="checkbox" id="compare-mode-toggle">
+                    <span class="slider round"></span>
+                </label>
+                <span class="mode-label" id="mode-compare">Compare</span>
+            </div>
+
             <!-- Search Widget -->
             <div class="search-box">
-                <div class="input-wrapper">
-                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                    <input type="text" id="ticker-input" placeholder="Enter ticker (e.g. AAPL)" autocomplete="off">
+                <!-- Single Ticker Inputs -->
+                <div id="single-search-inputs">
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="ticker-input" placeholder="Enter ticker (e.g. AAPL)" autocomplete="off">
+                    </div>
                 </div>
+                
+                <!-- Compare Ticker Inputs (Hidden by default) -->
+                <div id="compare-search-inputs" class="hidden">
+                    <div class="input-wrapper" style="margin-bottom: 0.6rem;">
+                        <i class="fa-solid fa-circle-a search-icon" style="color: var(--accent-primary);"></i>
+                        <input type="text" id="ticker-a-input" placeholder="Company A (e.g. AAPL)" autocomplete="off">
+                    </div>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-circle-b search-icon" style="color: var(--accent-secondary);"></i>
+                        <input type="text" id="ticker-b-input" placeholder="Company B (e.g. MSFT)" autocomplete="off">
+                    </div>
+                </div>
+                
                 <button id="analyze-btn" class="btn-primary">
-                    <span class="btn-text">Analyze</span>
+                    <span id="btn-text">Analyze</span>
                     <i class="fa-solid fa-bolt btn-icon"></i>
                 </button>
+            </div>
+
+            <!-- Recent Searches -->
+            <div class="suggestions" id="recent-searches-box">
+                <h3>Recent Searches</h3>
+                <div class="suggestion-chips" id="recent-chips-container">
+                    <span class="no-history-text">No recent searches</span>
+                </div>
             </div>
 
             <!-- Quick Ticker Suggestions -->
@@ -116,13 +150,18 @@
                 
                 <!-- Overview Header -->
                 <header class="dashboard-header">
-                    <div class="company-meta">
-                        <div class="company-title">
-                            <h2 id="meta-company-name">Apple Inc.</h2>
-                            <span id="meta-ticker" class="ticker-badge">AAPL</span>
-                            <a id="yahoo-finance-link" href="#" target="_blank" class="verify-link" title="Verify on Yahoo Finance"><i class="fa-solid fa-arrow-up-right-from-square"></i> Yahoo Finance</a>
+                    <div class="company-meta" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <div>
+                            <div class="company-title">
+                                <h2 id="meta-company-name">Apple Inc.</h2>
+                                <span id="meta-ticker" class="ticker-badge">AAPL</span>
+                                <a id="yahoo-finance-link" href="#" target="_blank" class="verify-link" title="Verify on Yahoo Finance"><i class="fa-solid fa-arrow-up-right-from-square"></i> Yahoo Finance</a>
+                            </div>
+                            <p class="timestamp">Generated on: <span id="meta-timestamp">2026-07-04 12:00:00</span></p>
                         </div>
-                        <p class="timestamp">Generated on: <span id="meta-timestamp">2026-07-04 12:00:00</span></p>
+                        <button id="export-report-btn" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">
+                            <i class="fa-solid fa-file-arrow-down"></i> Export Report
+                        </button>
                     </div>
                     
                     <!-- Overall Summary Callout -->
@@ -277,6 +316,139 @@
                     </div>
                 </div>
 
+            </div> <!-- End of dashboard-container -->
+
+            <!-- Comparison Dashboard -->
+            <div id="comparison-container" class="comparison-container hidden">
+                
+                <!-- Overview Header -->
+                <header class="dashboard-header">
+                    <div class="company-meta" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <div>
+                            <div class="company-title" style="display: flex; align-items: center; gap: 0.75rem;">
+                                <h2 id="compare-company-title">Company Comparison</h2>
+                                <span id="compare-badge-a" class="ticker-badge">AAPL</span>
+                                <span class="compare-vs" style="font-weight: 800; font-size: 0.9rem; color: var(--text-muted);">VS</span>
+                                <span id="compare-badge-b" class="ticker-badge" style="background: var(--accent-secondary); box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);">MSFT</span>
+                            </div>
+                            <p class="timestamp">Generated on: <span id="compare-timestamp">2026-07-04 12:00:00</span></p>
+                        </div>
+                        <button id="export-comparison-btn" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">
+                            <i class="fa-solid fa-file-arrow-down"></i> Export Report
+                        </button>
+                    </div>
+                    
+                    <!-- Comparative Report -->
+                    <div class="summary-card glass highlight-card" style="padding: 1.5rem;">
+                        <div class="card-header">
+                            <i class="fa-solid fa-code-compare icon-primary"></i>
+                            <h3>Gemini Side-by-Side Comparison</h3>
+                        </div>
+                        <p id="compare-summary" style="font-size: 0.98rem; line-height: 1.6; color: #cbd5e1; margin-bottom: 1.5rem;">Comparison text...</p>
+                        
+                        <div class="comparison-recommendation" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.08);">
+                            <h4 style="font-family: var(--font-heading); font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fa-solid fa-award" style="color: var(--color-warning);"></i> Risk-Adjusted Investment Recommendation
+                            </h4>
+                            <p id="compare-recommendation" style="font-size: 0.95rem; line-height: 1.6; color: #f8fafc; margin-top: 0.5rem;"></p>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- Comparison Grid -->
+                <section class="comparison-cards-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem;">
+                    <!-- Technical Comparison -->
+                    <div class="dashboard-card glass">
+                        <div class="card-header">
+                            <i class="fa-solid fa-gauge-high card-header-icon"></i>
+                            <h3>Technicals & Trends Comparison</h3>
+                        </div>
+                        <div class="card-body">
+                            <table class="compare-table">
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th id="comp-label-a">AAPL</th>
+                                        <th id="comp-label-b">MSFT</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Current Price</td>
+                                        <td id="comp-price-a" style="font-weight: 700; color: #ffffff;">-</td>
+                                        <td id="comp-price-b" style="font-weight: 700; color: #ffffff;">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Trend Status</td>
+                                        <td id="comp-trend-a">-</td>
+                                        <td id="comp-trend-b">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>RSI (14)</td>
+                                        <td id="comp-rsi-a">-</td>
+                                        <td id="comp-rsi-b">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>MACD Status</td>
+                                        <td id="comp-macd-a">-</td>
+                                        <td id="comp-macd-b">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>50-Day SMA</td>
+                                        <td id="comp-sma50-a">-</td>
+                                        <td id="comp-sma50-b">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>200-Day SMA</td>
+                                        <td id="comp-sma200-a">-</td>
+                                        <td id="comp-sma200-b">-</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Risk and Sentiment Comparison -->
+                    <div class="dashboard-card glass">
+                        <div class="card-header">
+                            <i class="fa-solid fa-circle-nodes card-header-icon"></i>
+                            <h3>SEC Risk & News Sentiment Comparison</h3>
+                        </div>
+                        <div class="card-body">
+                            <table class="compare-table">
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th id="comp-label-a2">AAPL</th>
+                                        <th id="comp-label-b2">MSFT</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Overall Risk Rating</td>
+                                        <td id="comp-risk-rating-a" style="font-weight: 700;">-</td>
+                                        <td id="comp-risk-rating-b" style="font-weight: 700;">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>News Sentiment</td>
+                                        <td id="comp-sentiment-a" style="font-weight: 700;">-</td>
+                                        <td id="comp-sentiment-b" style="font-weight: 700;">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Sentiment Score</td>
+                                        <td id="comp-sent-score-a">-</td>
+                                        <td id="comp-sent-score-b">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEC Filings Source</td>
+                                        <td><a id="comp-sec-a" href="#" target="_blank" class="verify-link"><i class="fa-solid fa-arrow-up-right-from-square"></i> View Source</a></td>
+                                        <td><a id="comp-sec-b" href="#" target="_blank" class="verify-link"><i class="fa-solid fa-arrow-up-right-from-square"></i> View Source</a></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
             </div>
         </main>
     </div>

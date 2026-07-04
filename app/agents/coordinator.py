@@ -63,6 +63,31 @@ class CoordinatorAgent:
 
     def generate_profile(self, ticker: str, custom_company_name: str = None) -> CompanyProfileResponse:
         ticker = self.resolve_ticker(ticker)
+        
+        import os
+        import json
+        import time
+        
+        # Resolve cache path
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        cache_dir = os.path.join(base_dir, ".cache", "profiles")
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_file = os.path.join(cache_dir, f"{ticker.lower()}_profile.json")
+        
+        # Cache duration: 2 hours (7200 seconds)
+        if os.path.exists(cache_file):
+            try:
+                mtime = os.path.getmtime(cache_file)
+                if time.time() - mtime < 7200:
+                    print(f"[{ticker}] Loading FULL company profile from cache...")
+                    with open(cache_file, "r") as f:
+                        cached_data = json.load(f)
+                    return CompanyProfileResponse.model_validate(cached_data)
+                else:
+                    print(f"[{ticker}] Cached profile expired, re-generating...")
+            except Exception as ce:
+                print(f"[{ticker}] Failed to load cached profile: {ce}")
+
         print(f"[{ticker}] Starting profile synthesis...")
 
         # 1. Gather all sub-agent data
@@ -154,7 +179,7 @@ class CoordinatorAgent:
         synthesis = SynthesizedFields.model_validate_json(response.text)
 
         # 3. Assemble and return the full response
-        return CompanyProfileResponse(
+        profile = CompanyProfileResponse(
             ticker=ticker,
             company_name=company_name,
             generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -166,3 +191,12 @@ class CoordinatorAgent:
             projections=synthesis.projections,
             historical_data=historical_data
         )
+        
+        # Write to cache
+        try:
+            with open(cache_file, "w") as f:
+                json.dump(profile.model_dump(), f, indent=2)
+        except Exception as ce:
+            print(f"[{ticker}] Failed to write profile cache: {ce}")
+            
+        return profile
