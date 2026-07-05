@@ -1,4 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize Session ID
+    let sessionId = localStorage.getItem('alphainsight_session_id');
+    if (!sessionId) {
+        sessionId = 'session_' + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('alphainsight_session_id', sessionId);
+    }
+
     // DOM Elements
     const tickerInput = document.getElementById('ticker-input');
     const tickerAInput = document.getElementById('ticker-a-input');
@@ -207,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ ticker: ticker })
+                body: JSON.stringify({ ticker: ticker, session_id: sessionId })
             });
 
             if (!response.ok) {
@@ -421,6 +428,42 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('proj-short').innerText = data.projections.short_term;
         document.getElementById('proj-long').innerText = data.projections.long_term;
 
+        // Render AI 5-Day Price Forecast
+        const forecastConfidence = document.getElementById('forecast-confidence');
+        const forecastValuesList = document.getElementById('forecast-values-list');
+        const forecastReasoning = document.getElementById('forecast-reasoning');
+        
+        if (data.forecast) {
+            forecastConfidence.innerText = `Confidence: ${data.forecast.confidence_level}`;
+            forecastConfidence.className = 'badge';
+            if (data.forecast.confidence_level.toLowerCase() === 'high') {
+                forecastConfidence.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
+                forecastConfidence.style.color = '#22c55e';
+            } else if (data.forecast.confidence_level.toLowerCase() === 'medium') {
+                forecastConfidence.style.backgroundColor = 'rgba(234, 179, 8, 0.1)';
+                forecastConfidence.style.color = '#eab308';
+            } else {
+                forecastConfidence.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                forecastConfidence.style.color = '#ef4444';
+            }
+
+            forecastValuesList.innerHTML = '';
+            data.forecast.points.forEach(pt => {
+                const row = document.createElement('div');
+                row.className = 'indicator-row';
+                row.innerHTML = `
+                    <span>${pt.date}</span>
+                    <span style="font-weight: 700; color: #ffffff;">$${pt.price.toFixed(2)}</span>
+                `;
+                forecastValuesList.appendChild(row);
+            });
+            forecastReasoning.innerText = data.forecast.reasoning;
+        } else {
+            forecastConfidence.innerText = 'Confidence: N/A';
+            forecastValuesList.innerHTML = '<span class="text-muted">No forecast data generated.</span>';
+            forecastReasoning.innerText = '';
+        }
+
         // Render Apex Chart
         priceChartInstance = renderSingleChart(
             "price-chart", 
@@ -593,60 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 
-    // Export PDF Report (Html2pdf integration)
-    function exportSingleReportPDF(data) {
-        if (!data) return;
-        
-        const element = document.getElementById('dashboard-container');
-        const opt = {
-            margin:       12,
-            filename:     `${data.ticker}_investment_report.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0a0d14' },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
-        };
-        
-        const btn = document.getElementById('export-report-btn');
-        // Hide button completely from PDF capture
-        btn.style.display = 'none';
-        
-        html2pdf().from(element).set(opt).save().then(() => {
-            btn.style.display = 'inline-flex';
-        }).catch(err => {
-            console.error("PDF generation failed, falling back to markdown:", err);
-            btn.style.display = 'inline-flex';
-            // Fallback to markdown download
-            exportSingleReport(data);
-        });
-    }
 
-    function exportComparisonReportPDF(data) {
-        if (!data) return;
-        
-        const element = document.getElementById('comparison-container');
-        const opt = {
-            margin:       12,
-            filename:     `${data.profile_a.ticker}_vs_${data.profile_b.ticker}_comparison_report.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0a0d14' },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
-        };
-        
-        const btn = document.getElementById('export-comparison-btn');
-        // Hide button completely from PDF capture
-        btn.style.display = 'none';
-        
-        html2pdf().from(element).set(opt).save().then(() => {
-            btn.style.display = 'inline-flex';
-        }).catch(err => {
-            console.error("PDF generation failed, falling back to markdown:", err);
-            btn.style.display = 'inline-flex';
-            // Fallback to markdown download
-            exportComparisonReport(data);
-        });
-    }
 
     // Markdown Exporter Fallbacks
     function exportSingleReport(data) {
@@ -712,13 +702,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(element);
     }
 
-    // Export button events - Trigger PDF generation
-    document.getElementById('export-report-btn').addEventListener('click', () => {
-        exportSingleReportPDF(currentSingleData);
+    // Export button events
+    document.getElementById('export-report-md-btn').addEventListener('click', () => {
+        exportSingleReport(currentSingleData);
     });
 
-    document.getElementById('export-comparison-btn').addEventListener('click', () => {
-        exportComparisonReportPDF(currentCompareData);
+    document.getElementById('export-comparison-md-btn').addEventListener('click', () => {
+        exportComparisonReport(currentCompareData);
     });
 
     // Unified Charting Function
@@ -846,4 +836,159 @@ document.addEventListener('DOMContentLoaded', () => {
         chartInstance.render();
         return chartInstance;
     }
+
+    // --- Chatbot Drawer Controller ---
+    const chatbotDrawer = document.getElementById('chatbot-drawer');
+    const chatbotHeader = document.getElementById('chatbot-header');
+    const toggleChatBtn = document.getElementById('toggle-chat-btn');
+    const chatInput = document.getElementById('chat-input');
+    const chatSendBtn = document.getElementById('chat-send-btn');
+    const chatMessages = document.getElementById('chat-messages');
+    const clearChatBtn = document.getElementById('clear-chat-btn');
+
+    // Toggle Chat Panel Expand/Collapse
+    chatbotHeader.addEventListener('click', (e) => {
+        // Prevent click trigger if clear button is clicked
+        if (e.target.closest('#clear-chat-btn')) return;
+        
+        chatbotDrawer.classList.toggle('collapsed');
+        const isCollapsed = chatbotDrawer.classList.contains('collapsed');
+        toggleChatBtn.innerHTML = isCollapsed ? '<i class="fa-solid fa-chevron-up"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
+        
+        if (!isCollapsed) {
+            chatInput.focus();
+            scrollChatToBottom();
+        }
+    });
+
+    // Scroll Chat to Bottom
+    function scrollChatToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Render Chat History from Database
+    function renderChatHistory(history) {
+        // Clear except first welcome message
+        const welcomeMessage = chatMessages.firstElementChild.outerHTML;
+        chatMessages.innerHTML = welcomeMessage;
+        
+        history.forEach(msg => {
+            appendChatBubble(msg.role, msg.content, false);
+        });
+        scrollChatToBottom();
+    }
+
+    // Append Chat Bubble
+    function appendChatBubble(role, text, shouldScroll = true) {
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble ${role}`;
+        
+        const paragraphs = text.split('\n').filter(p => p.trim());
+        bubble.innerHTML = paragraphs.map(p => `<p>${escapeHTML(p)}</p>`).join('');
+        
+        chatMessages.appendChild(bubble);
+        if (shouldScroll) {
+            scrollChatToBottom();
+        }
+    }
+
+    function escapeHTML(str) {
+        return str.replace(/[&<>'"]/g, 
+            tag => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                "'": '&#39;',
+                '"': '&quot;'
+            }[tag] || tag)
+        );
+    }
+
+    // Load Chat History from Server on Boot
+    async function loadSessionHistory() {
+        try {
+            const res = await fetch(`/api/chat/history/${sessionId}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.history && data.history.length > 0) {
+                    renderChatHistory(data.history);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to load chat history:", err);
+        }
+    }
+
+    // Clear Chat History
+    clearChatBtn.addEventListener('click', async () => {
+        if (confirm("Are you sure you want to clear this chat session?")) {
+            try {
+                const res = await fetch(`/api/chat/history/${sessionId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    const welcomeMessage = chatMessages.firstElementChild.outerHTML;
+                    chatMessages.innerHTML = welcomeMessage;
+                }
+            } catch (err) {
+                console.error("Failed to clear history:", err);
+            }
+        }
+    });
+
+    // Send Message to Agent
+    async function sendMessage() {
+        const message = chatInput.value.trim();
+        if (!message) return;
+        
+        chatInput.value = '';
+        appendChatBubble('user', message);
+        
+        // Disable input
+        chatInput.disabled = true;
+        chatSendBtn.disabled = true;
+        
+        // Show typing indicator bubble
+        const typingBubble = document.createElement('div');
+        typingBubble.className = 'chat-bubble model typing-indicator';
+        typingBubble.innerHTML = '<p>Copilot thinking...</p>';
+        chatMessages.appendChild(typingBubble);
+        scrollChatToBottom();
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ message: message, session_id: sessionId })
+            });
+
+            // Remove typing bubble
+            typingBubble.remove();
+
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.detail || "Server error");
+            }
+
+            const data = await res.json();
+            appendChatBubble('model', data.reply);
+
+        } catch (error) {
+            console.error("Chat error:", error);
+            typingBubble.remove();
+            appendChatBubble('system', `Error sending message: ${error.message}`);
+        } finally {
+            chatInput.disabled = false;
+            chatSendBtn.disabled = false;
+            chatInput.focus();
+        }
+    }
+
+    chatSendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+
+    // Boot execution
+    loadSessionHistory();
 });

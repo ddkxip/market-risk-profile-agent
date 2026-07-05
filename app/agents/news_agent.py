@@ -111,33 +111,32 @@ class NewsAgent:
         client = get_gemini_client()
         
         if not news_data:
-            # Fallback if no news could be fetched
-            prompt = f"""
-            You are a stock market sentiment analyst. There are no recent news headlines available for {ticker}.
-            Provide an overall sentiment assessment (Bullish/Bearish/Neutral) and sentiment score (-1.0 to 1.0)
-            based on your internal knowledge of the market consensus, recent earnings reports, and analyst ratings as of mid-2026.
-            Also, generate 3 hypothetical/representative recent news developments with insights for {ticker}.
-            """
-        else:
-            # Pass clean metadata to Gemini (we omit links here to keep the prompt clean and save tokens)
-            news_prompt_data = [
-                {
-                    "index": idx,
-                    "headline": item["headline"],
-                    "source": item["source"],
-                    "date": item["date"]
-                }
-                for idx, item in enumerate(news_data)
-            ]
-            news_text = json.dumps(news_prompt_data, indent=2)
-            prompt = f"""
-            You are a stock market sentiment analyst. Analyze the following news headlines for {ticker}.
-            For each article, determine the sentiment (Positive, Negative, Neutral) and write a one-sentence key takeaway for investors.
-            Calculate an overall sentiment rating (Bullish, Bearish, Neutral) and a score from -1.0 (very bearish) to 1.0 (very bullish).
-            
-            News Articles:
-            {news_text}
-            """
+            # Responsible AI: return neutral/empty sentiment instead of fabricating news headlines
+            return SentimentAnalysis(
+                overall_sentiment="Neutral",
+                score=0.0,
+                items=[]
+            )
+        
+        # Pass clean metadata to Gemini (we omit links here to keep the prompt clean and save tokens)
+        news_prompt_data = [
+            {
+                "index": idx,
+                "headline": item["headline"],
+                "source": item["source"],
+                "date": item["date"]
+            }
+            for idx, item in enumerate(news_data)
+        ]
+        news_text = json.dumps(news_prompt_data, indent=2)
+        prompt = f"""
+        You are a stock market sentiment analyst. Analyze the following news headlines for {ticker}.
+        For each article, determine the sentiment (Positive, Negative, Neutral) and write a one-sentence key takeaway for investors.
+        Calculate an overall sentiment rating (Bullish, Bearish, Neutral) and a score from -1.0 (very bearish) to 1.0 (very bullish).
+        
+        News Articles:
+        {news_text}
+        """
             
         response = client.models.generate_content(
             model='gemini-2.5-flash',

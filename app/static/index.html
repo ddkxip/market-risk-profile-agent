@@ -14,8 +14,6 @@
     <link rel="stylesheet" href="/static/style.css">
     <!-- Chart.js and ApexCharts for visualizations -->
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-    <!-- html2pdf for PDF exports -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -161,8 +159,8 @@
                             </div>
                             <p class="timestamp">Generated on: <span id="meta-timestamp">2026-07-04 12:00:00</span></p>
                         </div>
-                        <button id="export-report-btn" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">
-                            <i class="fa-solid fa-file-arrow-down"></i> Export Report
+                        <button id="export-report-md-btn" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <i class="fa-solid fa-file-code"></i> Export Report (Markdown)
                         </button>
                     </div>
                     
@@ -252,6 +250,21 @@
                             </div>
                         </div>
 
+                        <!-- 5-Day Price Forecast Card -->
+                        <div class="dashboard-card glass">
+                            <div class="card-header">
+                                <i class="fa-solid fa-square-poll-vertical card-header-icon" style="color: var(--color-warning);"></i>
+                                <h3>AI 5-Day Price Projection</h3>
+                                <span id="forecast-confidence" class="badge" style="margin-left: auto;">Confidence: -</span>
+                            </div>
+                            <div class="card-body">
+                                <div id="forecast-values-list" class="technical-indicators-list" style="margin-bottom: 1rem;">
+                                    <!-- Populated dynamically -->
+                                </div>
+                                <p id="forecast-reasoning" style="font-size: 0.9rem; line-height: 1.5; color: #94a3b8; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.06);"></p>
+                            </div>
+                        </div>
+
                         <!-- Macroeconomic Impact -->
                         <div class="dashboard-card glass">
                             <div class="card-header">
@@ -264,11 +277,23 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Recent news and sentiment -->
+                        <div class="dashboard-card glass">
+                            <div class="card-header">
+                                <i class="fa-solid fa-rss card-header-icon"></i>
+                                <h3>Recent news and sentiment</h3>
+                            </div>
+                            <div class="card-body">
+                                <div id="news-headlines-container" class="news-list">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Right Column: SEC Risks & News Headlines -->
+                    <!-- Right Column: SEC Risks & Projections -->
                     <div class="details-col">
-                        
                         <!-- SEC Risks -->
                         <div class="dashboard-card glass">
                             <div class="card-header">
@@ -279,19 +304,6 @@
                             <div class="card-body">
                                 <p id="sec-risk-summary" class="sec-summary-paragraph">Summary of company risks...</p>
                                 <div id="sec-factors-container" class="sec-factors-list">
-                                    <!-- Populated dynamically -->
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Recent News & Sentiments -->
-                        <div class="dashboard-card glass">
-                            <div class="card-header">
-                                <i class="fa-solid fa-rss card-header-icon"></i>
-                                <h3>Recent Sentiment Analysis</h3>
-                            </div>
-                            <div class="card-body">
-                                <div id="news-headlines-container" class="news-list">
                                     <!-- Populated dynamically -->
                                 </div>
                             </div>
@@ -314,7 +326,6 @@
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
 
@@ -335,8 +346,8 @@
                             </div>
                             <p class="timestamp">Generated on: <span id="compare-timestamp">2026-07-04 12:00:00</span></p>
                         </div>
-                        <button id="export-comparison-btn" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">
-                            <i class="fa-solid fa-file-arrow-down"></i> Export Report
+                        <button id="export-comparison-md-btn" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <i class="fa-solid fa-file-code"></i> Export Report (Markdown)
                         </button>
                     </div>
                     
@@ -498,6 +509,44 @@
             </div>
         </main>
     </div>
+
+    <!-- Floating Chatbot Copilot Drawer -->
+    <div class="chatbot-drawer collapsed" id="chatbot-drawer">
+        <div class="chatbot-header" id="chatbot-header">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <i class="fa-solid fa-robot chatbot-header-icon"></i>
+                <div>
+                    <h4 style="margin: 0; font-size: 0.9rem; font-weight: 700; color: #ffffff;">AlphaInsight Chatbot</h4>
+                    <span style="font-size: 0.7rem; color: var(--color-success); display: flex; align-items: center; gap: 0.25rem;">
+                        <span class="status-dot online" style="width: 5px; height: 5px; background-color: #22c55e; display: inline-block; border-radius: 50%;"></span> ADK Team Active
+                    </span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button id="clear-chat-btn" class="chat-header-action-btn" title="Clear Conversation"><i class="fa-solid fa-trash-can"></i></button>
+                <button id="toggle-chat-btn" class="chat-header-action-btn"><i class="fa-solid fa-chevron-up"></i></button>
+            </div>
+        </div>
+        <div class="chatbot-body" id="chatbot-body">
+            <div class="chat-messages" id="chat-messages">
+                <div class="chat-bubble model">
+                    <p>Hello! I am your AlphaInsight AI Copilot, powered by Google's Agent Development Kit (ADK).</p>
+                    <p>Analyze a ticker above, then ask me follow-up questions, request specific details, or compare past companies!</p>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Ask about the analysis..." autocomplete="off">
+                <button id="chat-send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Responsible AI Sticky Footer Warning -->
+    <footer class="app-disclaimer-footer">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>Disclaimer: This tool is for informational/educational purposes only and does not constitute financial advice.</span>
+    </footer>
+
     <script src="/static/main.js"></script>
 </body>
 </html>

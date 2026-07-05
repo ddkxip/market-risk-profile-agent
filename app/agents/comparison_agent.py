@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from google import genai
 from pydantic import BaseModel, Field
@@ -14,12 +15,22 @@ class ComparisonAgent:
         self.coordinator = CoordinatorAgent()
 
     def compare_companies(self, ticker_a: str, ticker_b: str) -> ComparisonResponse:
-        # 1. Resolve and generate/load profiles
-        # Note: self.coordinator.generate_profile internally resolves names to tickers and utilizes cache
-        profile_a = self.coordinator.generate_profile(ticker_a)
-        profile_b = self.coordinator.generate_profile(ticker_b)
+        """Synchronous wrapper for offline CLI scripts."""
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(self.compare_companies_async(ticker_a, ticker_b))
+        finally:
+            loop.close()
 
-        # 2. Query Gemini for comparative analysis
+    async def compare_companies_async(self, ticker_a: str, ticker_b: str) -> ComparisonResponse:
+        """Asynchronously compiles profiles for both tickers concurrently and runs comparison."""
+        profile_a_task = self.coordinator.generate_profile_async(ticker_a)
+        profile_b_task = self.coordinator.generate_profile_async(ticker_b)
+        
+        # Concurrently fetch and synthesize profiles
+        profile_a, profile_b = await asyncio.gather(profile_a_task, profile_b_task)
+
+        # Query Gemini for comparative analysis
         client = get_gemini_client()
         
         prompt = f"""
@@ -48,7 +59,8 @@ class ComparisonAgent:
         4. Write a better_investment recommendation (100-150 words) explaining which stock represents a better risk-reward opportunity for investors under current conditions and why.
         """
 
-        response = client.models.generate_content(
+        response = await asyncio.to_thread(
+            client.models.generate_content,
             model='gemini-2.5-flash',
             contents=prompt,
             config={

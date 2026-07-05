@@ -1,10 +1,53 @@
 import urllib.request
 import json
 import re
+import os
+import time
 from bs4 import BeautifulSoup
 from google import genai
 from app.config import get_gemini_client
 from app.models import RiskProfile, RiskFactor
+
+def load_sec_tickers(headers: dict) -> dict:
+    """Loads the SEC company tickers mapping, utilizing a local file cache (expires in 24h)."""
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    cache_dir = os.path.join(base_dir, ".cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, "company_tickers.json")
+
+    # Cache duration: 24 hours (86400 seconds)
+    if os.path.exists(cache_file):
+        try:
+            mtime = os.path.getmtime(cache_file)
+            if time.time() - mtime < 86400:
+                with open(cache_file, "r") as f:
+                    return json.load(f)
+        except Exception as e:
+            print(f"Error reading cached company_tickers.json: {e}")
+
+    # Not cached or expired -> fetch from SEC
+    url = "https://www.sec.gov/files/company_tickers.json"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode('utf-8'))
+        # Save to cache
+        try:
+            with open(cache_file, "w") as f:
+                json.dump(data, f)
+        except Exception as ce:
+            print(f"Failed to write company_tickers.json cache: {ce}")
+        return data
+    except Exception as e:
+        print(f"Error fetching tickers from SEC: {e}")
+        # Return fallback from cache if available
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {}
 
 class SECAgent:
     def __init__(self):
@@ -16,18 +59,11 @@ class SECAgent:
     def get_cik_from_ticker(self, ticker: str) -> str:
         """Resolves a ticker symbol to a 10-digit padded CIK number."""
         ticker = ticker.upper().strip()
-        url = "https://www.sec.gov/files/company_tickers.json"
         
-        req = urllib.request.Request(url, headers=self.headers)
-        try:
-            with urllib.request.urlopen(req) as response:
-                data = json.loads(response.read().decode('utf-8'))
-                
-            for company in data.values():
-                if company['ticker'] == ticker:
-                    return str(company['cik_str']).zfill(10)
-        except Exception as e:
-            print(f"Error fetching CIK map from SEC: {e}")
+        data = load_sec_tickers(self.headers)
+        for company in data.values():
+            if company['ticker'] == ticker:
+                return str(company['cik_str']).zfill(10)
             
         # Common tickers hardcoded fallback to be robust
         fallbacks = {
@@ -102,10 +138,9 @@ class SECAgent:
             
         if match:
             start_idx = match.start()
-            # Extract up to 60,000 characters from the match start to avoid hitting LLM limits or reading the entire 10-K
+            # Extract up to 60,000 characters from the match start to avoid hitting LLM limits
             return text[start_idx:start_idx + 60000]
             
-        # Return first 60,000 characters if we can't find the keyword (highly unlikely but safe fallback)
         return text[:60000]
 
     def analyze_risk_with_gemini(self, ticker: str, text: str, form_type: str, filing_date: str) -> RiskProfile:
@@ -133,7 +168,6 @@ class SECAgent:
             }
         )
         
-        # parse json from response
         return RiskProfile.model_validate_json(response.text)
 
     def analyze_company_risks_fallback(self, ticker: str) -> RiskProfile:
@@ -155,12 +189,13 @@ class SECAgent:
             }
         )
         
-        return RiskProfile.model_validate_json(response.text)
+        profile = RiskProfile.model_validate_json(response.text)
+        # Prepend ungrounded warning notice for Responsible AI
+        profile.summary = f"[Note: SEC EDGAR direct filing fetch failed. The following risks are synthesized from Gemini's internal market knowledge rather than direct filing extracts.] {profile.summary}"
+        return profile
 
     def get_risk_profile(self, ticker: str) -> RiskProfile:
         """Main entry point to retrieve risk profile."""
-        import os
-        
         # Resolve cache path
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         cache_dir = os.path.join(base_dir, ".cache", "sec")
@@ -175,12 +210,10 @@ class SECAgent:
                     cached_data = json.load(f)
                 profile = RiskProfile.model_validate(cached_data)
                 
-                # If cached profile doesn't have filing_url, resolve and add it
                 if not profile.filing_url:
                     cik = self.get_cik_from_ticker(ticker)
                     if cik:
                         profile.filing_url = f"https://www.sec.gov/edgar/browse/?CIK={cik}"
-                        # Save updated profile with url back to cache
                         with open(cache_file, "w") as f_out:
                             json.dump(profile.model_dump(), f_out, indent=2)
                 return profile
@@ -204,7 +237,6 @@ class SECAgent:
         except Exception as e:
             print(f"SEC direct fetch failed for {ticker} ({e}). Falling back to Gemini knowledge base...")
             profile = self.analyze_company_risks_fallback(ticker)
-            # Add fallback search link
             cik = self.get_cik_from_ticker(ticker)
             if cik:
                 profile.filing_url = f"https://www.sec.gov/edgar/browse/?CIK={cik}"

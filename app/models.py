@@ -4,6 +4,11 @@ from typing import List, Optional
 class AnalysisRequest(BaseModel):
     ticker: str = Field(..., description="Stock ticker symbol (e.g., AAPL, MSFT, GOOGL)")
     company_name: Optional[str] = Field(None, description="Optional company name to aid search")
+    session_id: Optional[str] = Field(None, description="Optional session ID to track history")
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., description="User's query or instruction to the agent")
+    session_id: str = Field(..., description="Session identifier for message tracking")
 
 class RiskFactor(BaseModel):
     category: str = Field(..., description="Category of risk (e.g., Financial, Regulatory, Operational, Competition)")
@@ -66,6 +71,16 @@ class CompanyProfileResponse(BaseModel):
     macro_factors: List[MacroeconomicFactors] = Field(..., description="Macroeconomic headwinds and tailwinds")
     projections: Projections = Field(..., description="Short-term and long-term outlooks")
     historical_data: List[HistoricalPricePoint] = Field(default=[], description="Historical stock prices and moving averages for charting")
+    forecast: Optional['ForecastData'] = Field(None, description="5-day daily price projection")
+
+class ForecastPoint(BaseModel):
+    date: str = Field(..., description="Trading date for the forecast (YYYY-MM-DD)")
+    price: float = Field(..., description="Projected closing price")
+
+class ForecastData(BaseModel):
+    points: List[ForecastPoint] = Field(..., description="5-day price projection points")
+    confidence_level: str = Field(..., description="Confidence rating of forecast (High, Medium, Low)")
+    reasoning: str = Field(..., description="Analytical reasoning backing the forecast")
 
 class ComparisonRequest(BaseModel):
     ticker_a: str = Field(..., description="First stock ticker symbol")

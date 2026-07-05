@@ -1,13 +1,132 @@
-from datetime import datetime
+import asyncio
+import json
+import os
 import yfinance as yf
-from google import genai
+from datetime import datetime
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.events import Event
+from google.genai import types
 from pydantic import BaseModel, Field
+
 from app.config import get_gemini_client
 from app.models import CompanyProfileResponse, Projections
 from app.agents.market_data_agent import MarketDataAgent
 from app.agents.sec_agent import SECAgent
 from app.agents.news_agent import NewsAgent
 from app.agents.macro_agent import MacroAgent
+from app.agents.forecasting_agent import ForecastingAgent
+from app.session_store import SessionStore
+
+# 1. Wrapper Function Tools for ADK Subagents
+market_data_agent = MarketDataAgent()
+sec_agent = SECAgent()
+news_agent = NewsAgent()
+macro_agent = MacroAgent()
+forecasting_agent = ForecastingAgent()
+
+def get_market_technicals(ticker: str) -> str:
+    """Retrieves current stock price, RSI, MACD, and SMAs for a ticker."""
+    try:
+        tech_vals, _ = market_data_agent.get_indicators(ticker)
+        return json.dumps(tech_vals.model_dump())
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+def get_sec_corporate_risks(ticker: str) -> str:
+    """Retrieves SEC filing risk factors, summaries, and source filing URL for a ticker."""
+    try:
+        profile = sec_agent.get_risk_profile(ticker)
+        return json.dumps(profile.model_dump())
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+def get_news_sentiment(ticker: str) -> str:
+    """Retrieves recent news headlines, sentiment scores, and article links for a ticker."""
+    try:
+        sentiment = news_agent.get_sentiment(ticker)
+        return json.dumps(sentiment.model_dump())
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+def get_macroeconomic_factors(ticker: str) -> str:
+    """Retrieves macroeconomic headwinds and tailwinds impacting the company's sector."""
+    try:
+        factors = macro_agent.get_macro_factors(ticker)
+        return json.dumps([f.model_dump() for f in factors])
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+def get_stock_price_forecast(ticker: str) -> str:
+    """Retrieves a 5-day stock price forecast, confidence level, and quantitative rationale."""
+    try:
+        forecast = forecasting_agent.get_forecast(ticker)
+        return json.dumps(forecast.model_dump())
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+# 2. ADK Subagents Definitions
+market_adk_agent = Agent(
+    name="market_data_analyst",
+    mode="single_turn",
+    description="Analyzes stock price trends, RSI, MACD, and SMAs.",
+    instruction="Use the get_market_technicals tool to retrieve technical indicators.",
+    tools=[get_market_technicals]
+)
+
+sec_adk_agent = Agent(
+    name="sec_filing_analyst",
+    mode="single_turn",
+    description="Extracts and reviews SEC filing risk factors and CIK mapping.",
+    instruction="Use the get_sec_corporate_risks tool to analyze corporate risks.",
+    tools=[get_sec_corporate_risks]
+)
+
+news_adk_agent = Agent(
+    name="news_sentiment_analyst",
+    mode="single_turn",
+    description="Gathers news headlines and sentiment ratings.",
+    instruction="Use the get_news_sentiment tool to retrieve recent stock developments.",
+    tools=[get_news_sentiment]
+)
+
+macro_adk_agent = Agent(
+    name="macroeconomics_analyst",
+    mode="single_turn",
+    description="Summarizes sector-level macroeconomic factors.",
+    instruction="Use the get_macroeconomic_factors tool to check headwinds/tailwinds.",
+    tools=[get_macroeconomic_factors]
+)
+
+forecast_adk_agent = Agent(
+    name="forecasting_analyst",
+    mode="single_turn",
+    description="Projects future stock prices using quantitative trends.",
+    instruction="Use the get_stock_price_forecast tool to project 5-day price series.",
+    tools=[get_stock_price_forecast]
+)
+
+# 3. Root ADK Coordinator
+coordinator_adk_agent = Agent(
+    name="portfolio_coordinator",
+    model="gemini-2.5-flash",
+    description="Chief investment officer coordinating specialized financial analysts.",
+    instruction="""
+    You are the Chief Investment Officer. Your goal is to answer investor questions about stocks.
+    You will be provided with the active stock's compiled profile details in the message prefix: [Active Stock Profile Context for TICKER: ...].
+    If the investor asks about the active stock (e.g. its price, trend, 5-day forecast, SEC risks, sentiment, or news), you MUST answer directly using the provided profile context. Do NOT call your sub-agents in this case, as you already have the compiled data.
+    If the investor asks about a different stock, or wants to run a new comparison, delegate to your sub-agents:
+    - market_data_analyst for prices, trends, RSI, MACD, SMAs.
+    - sec_filing_analyst for corporate risk factors and filing URLs.
+    - news_sentiment_analyst for headlines and sentiment scores.
+    - macroeconomics_analyst for sector tailwinds/headwinds.
+    - forecasting_analyst for 5-day daily price projections.
+    
+    Synthesize findings into a cohesive, professional conversational reply. Refer to conversation history to maintain context.
+    """,
+    sub_agents=[market_adk_agent, sec_adk_agent, news_adk_agent, macro_adk_agent, forecast_adk_agent]
+)
 
 class SynthesizedFields(BaseModel):
     overall_summary: str = Field(..., description="High-level investor summary")
@@ -15,10 +134,12 @@ class SynthesizedFields(BaseModel):
 
 class CoordinatorAgent:
     def __init__(self):
-        self.market_agent = MarketDataAgent()
-        self.sec_agent = SECAgent()
-        self.news_agent = NewsAgent()
-        self.macro_agent = MacroAgent()
+        self.market_agent = market_data_agent
+        self.sec_agent = sec_agent
+        self.news_agent = news_agent
+        self.macro_agent = macro_agent
+        self.forecasting_agent = forecasting_agent
+        self.root_adk_agent = coordinator_adk_agent
 
     def get_company_name(self, ticker: str) -> str:
         """Retrieves the full company name using yfinance."""
@@ -29,30 +150,22 @@ class CoordinatorAgent:
             return ticker
 
     def resolve_ticker(self, query: str) -> str:
-        """Attempts to resolve a company name query to a valid ticker using SEC tickers database."""
+        """Attempts to resolve a company name query to a valid ticker using SEC tickers database (cached)."""
         query_clean = query.upper().strip()
         if not query_clean:
             return query
             
-        # If it looks like a standard ticker (1-5 alphabetical characters), use it directly
         if query_clean.isalpha() and 1 <= len(query_clean) <= 5:
             return query_clean
             
         try:
-            import urllib.request
-            import json
-            
+            from app.agents.sec_agent import load_sec_tickers
             headers = {"User-Agent": "MarketRiskAgent/1.0 (ddkxi@gemini-capstone.com)"}
-            url = "https://www.sec.gov/files/company_tickers.json"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req) as response:
-                data = json.loads(response.read().decode('utf-8'))
+            data = load_sec_tickers(headers)
                 
             for company in data.values():
                 title = company.get('title', '').upper()
                 ticker_symbol = company.get('ticker', '').upper()
-                
-                # Check for substring match (e.g. "APPLE" matches "APPLE INC")
                 if query_clean in title or title in query_clean:
                     print(f"[Resolver] Resolved '{query}' to ticker '{ticker_symbol}'")
                     return ticker_symbol
@@ -62,13 +175,19 @@ class CoordinatorAgent:
         return query_clean
 
     def generate_profile(self, ticker: str, custom_company_name: str = None) -> CompanyProfileResponse:
+        """Synchronous wrapper for offline test scripts and CLI testing."""
+        import asyncio
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(self.generate_profile_async(ticker, custom_company_name=custom_company_name))
+        finally:
+            loop.close()
+
+    async def generate_profile_async(self, ticker: str, session_id: str = None, custom_company_name: str = None) -> CompanyProfileResponse:
+        """Asynchronously compiles risk and trading profile concurrently, caching results."""
         ticker = self.resolve_ticker(ticker)
         
-        import os
-        import json
-        import time
-        
-        # Resolve cache path
+        # Check cache
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         cache_dir = os.path.join(base_dir, ".cache", "profiles")
         os.makedirs(cache_dir, exist_ok=True)
@@ -78,42 +197,40 @@ class CoordinatorAgent:
         if os.path.exists(cache_file):
             try:
                 mtime = os.path.getmtime(cache_file)
+                import time
                 if time.time() - mtime < 7200:
                     print(f"[{ticker}] Loading FULL company profile from cache...")
                     with open(cache_file, "r") as f:
                         cached_data = json.load(f)
-                    return CompanyProfileResponse.model_validate(cached_data)
-                else:
-                    print(f"[{ticker}] Cached profile expired, re-generating...")
+                    profile = CompanyProfileResponse.model_validate(cached_data)
+                    
+                    if session_id:
+                        db = SessionStore()
+                        db.update_metadata(session_id, last_ticker=ticker)
+                        db.save_message(session_id, "user", f"Analyze {ticker}")
+                        db.save_message(session_id, "model", f"Loaded cached profile for {profile.company_name} ({profile.ticker}).")
+                    return profile
             except Exception as ce:
                 print(f"[{ticker}] Failed to load cached profile: {ce}")
 
-        print(f"[{ticker}] Starting profile synthesis...")
+        print(f"[{ticker}] Starting parallel profile synthesis...")
 
-        # 1. Gather all sub-agent data
-        # Technical indicators
-        tech_data, historical_data = self.market_agent.get_indicators(ticker)
-        print(f"[{ticker}] Market technicals retrieved.")
+        # Concurrent, parallel fetching using asyncio.to_thread
+        tech_future = asyncio.to_thread(self.market_agent.get_indicators, ticker)
+        sec_future = asyncio.to_thread(self.sec_agent.get_risk_profile, ticker)
+        news_future = asyncio.to_thread(self.news_agent.get_sentiment, ticker)
+        macro_future = asyncio.to_thread(self.macro_agent.get_macro_factors, ticker)
+        forecast_future = asyncio.to_thread(self.forecasting_agent.get_forecast, ticker)
+        
+        (tech_data, historical_data), sec_data, sentiment_data, macro_data, forecast_data = await asyncio.gather(
+            tech_future, sec_future, news_future, macro_future, forecast_future
+        )
 
-        # SEC risk profile
-        sec_data = self.sec_agent.get_risk_profile(ticker)
-        print(f"[{ticker}] SEC risks analyzed.")
-
-        # News & Sentiment analysis
-        sentiment_data = self.news_agent.get_sentiment(ticker)
-        print(f"[{ticker}] News sentiment evaluated.")
-
-        # Macroeconomic factors
-        macro_data = self.macro_agent.get_macro_factors(ticker)
-        print(f"[{ticker}] Macroeconomic impacts analyzed.")
-
-        # Resolve Company Name
         company_name = custom_company_name or self.get_company_name(ticker)
 
-        # 2. Synthesize results using Gemini
+        # Synthesis
         client = get_gemini_client()
         
-        # Prepare context for the final LLM synthesis
         context_str = f"""
         Company: {company_name} ({ticker})
         Date: {datetime.now().strftime('%Y-%m-%d')}
@@ -121,15 +238,11 @@ class CoordinatorAgent:
         --- TECHNICAL TRENDS ---
         Current Price: ${tech_data.current_price}
         RSI (14): {tech_data.rsi_14} ({tech_data.rsi_status})
-        MACD: {tech_data.macd_value} (Signal: {tech_data.macd_signal}, Status: {tech_data.macd_status})
-        SMA 50: ${tech_data.sma_50}
-        SMA 200: ${tech_data.sma_200}
-        Trend: {tech_data.trend_status}
+        MACD: {tech_data.macd_value} (Status: {tech_data.macd_status})
         
         --- SEC FILING RISKS ---
         Overall SEC Risk Rating: {sec_data.overall_rating}
         SEC Risk Summary: {sec_data.summary}
-        Key SEC Risk Factors:
         """
         for factor in sec_data.factors:
             context_str += f"\n- [{factor.category} | Severity: {factor.severity}] {factor.description}"
@@ -138,34 +251,31 @@ class CoordinatorAgent:
         
         --- NEWS & SENTIMENT ---
         Overall Sentiment: {sentiment_data.overall_sentiment} (Score: {sentiment_data.score})
-        Key news takeaways:
         """
         for item in sentiment_data.items:
-            context_str += f"\n- {item.headline} (Sentiment: {item.sentiment}) Takeaway: {item.takeaway}"
+            context_str += f"\n- {item.headline} (Takeaway: {item.takeaway})"
             
         context_str += f"""
         
-        --- MACROECONOMIC FACTORS ---
+        --- FORECAST ---
+        Forecast (Next 5 Days):
         """
-        for factor in macro_data:
-            context_str += f"\n- [{factor.factor_name} | Impact: {factor.impact_level}] {factor.description}"
-
+        for pt in forecast_data.points:
+            context_str += f"\n- {pt.date}: ${pt.price}"
+            
         prompt = f"""
-        You are the Chief Investment Officer. Synthesize the following multi-dimensional dataset for {company_name} ({ticker}) into an overall investor summary and short-to-long-term projections.
+        You are the Chief Investment Officer. Synthesize the following dataset for {company_name} ({ticker}) into an overall investor summary and projections.
         
         Company Analysis Data:
         {context_str}
         
         Write:
-        1. An overall_summary (a paragraph of ~100-150 words summarizing the investment case, balancing the technical, sentiment, micro-risk, and macro-risk dimensions).
+        1. An overall_summary (a paragraph of ~100-150 words).
         2. Projections:
-           - short_term: Short-term projection (1-3 months) detailing how technical momentum, news catalysts, and macro issues will combine to drive the stock.
-           - long_term: Long-term projection (12+ months) detailing how the fundamental SEC risks, competitive advantages, and macroeconomic environment will shape the company's valuation.
+           - short_term: Short-term projection (1-3 months).
+           - long_term: Long-term projection (12+ months).
         """
-
-        # We request Gemini to return the synthesized part conforming to our schema.
-        # Since we want to return a complete CompanyProfileResponse, we will populate the sub-fields using our already calculated objects.
-
+        
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
@@ -178,7 +288,6 @@ class CoordinatorAgent:
         
         synthesis = SynthesizedFields.model_validate_json(response.text)
 
-        # 3. Assemble and return the full response
         profile = CompanyProfileResponse(
             ticker=ticker,
             company_name=company_name,
@@ -189,7 +298,8 @@ class CoordinatorAgent:
             technical_indicators=tech_data,
             macro_factors=macro_data,
             projections=synthesis.projections,
-            historical_data=historical_data
+            historical_data=historical_data,
+            forecast=forecast_data
         )
         
         # Write to cache
@@ -198,5 +308,71 @@ class CoordinatorAgent:
                 json.dump(profile.model_dump(), f, indent=2)
         except Exception as ce:
             print(f"[{ticker}] Failed to write profile cache: {ce}")
+
+        # Update SQLite session store
+        if session_id:
+            db = SessionStore()
+            db.update_metadata(session_id, last_ticker=ticker)
+            db.save_message(session_id, "user", f"Analyze {ticker}")
+            db.save_message(session_id, "model", f"Generated complete risk profile for {company_name} ({ticker}). Overall summary: {profile.overall_summary}")
             
         return profile
+
+    async def chat_async(self, message: str, session_id: str, user_id: str = "default_user") -> str:
+        """Sends user message to ADK agent team, leveraging SQLite session history and context."""
+        db = SessionStore()
+        history = db.get_history(session_id)
+        metadata = db.get_metadata(session_id)
+        
+        # Load ADK session service
+        session_service = InMemorySessionService()
+        session = await session_service.create_session(
+            app_name="alpha_insight",
+            user_id=user_id,
+            session_id=session_id
+        )
+        
+        # Populate session events from SQLite history
+        for msg in history:
+            role = 'user' if msg['role'] == 'user' else 'model'
+            event = Event(
+                author=role,
+                content=types.Content(role=role, parts=[types.Part(text=msg['content'])]),
+            )
+            session.events.append(event)
+            
+        runner = Runner(agent=self.root_adk_agent, app_name="alpha_insight", session_service=session_service)
+        
+        # Prepend the active stock context to the prompt so the ADK agent knows what stock we are discussing
+        prefix = ""
+        if metadata.get("last_ticker"):
+            ticker = metadata["last_ticker"]
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            cache_file = os.path.join(base_dir, ".cache", "profiles", f"{ticker.lower()}_profile.json")
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, "r") as f:
+                        profile_data = json.load(f)
+                    # Exclude large timeseries list to stay fast and cheap
+                    if "historical_data" in profile_data:
+                        del profile_data["historical_data"]
+                    prefix = f"[Active Stock Profile Context for {ticker}:\n{json.dumps(profile_data)}]\n"
+                except Exception:
+                    prefix = f"[Active Stock Ticker context: {ticker}]\n"
+            else:
+                prefix = f"[Active Stock Ticker context: {ticker}]\n"
+            
+        new_content = types.Content(role='user', parts=[types.Part(text=f"{prefix}{message}")])
+        final_text = "Sorry, I could not compile a response."
+        
+        async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=new_content):
+            if event.is_final_response():
+                if event.content and event.content.parts:
+                    final_text = event.content.parts[0].text
+                    break
+                    
+        # Save new turn in SQLite
+        db.save_message(session_id, "user", message)
+        db.save_message(session_id, "model", final_text)
+        
+        return final_text

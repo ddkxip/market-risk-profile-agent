@@ -5,3 +5,4 @@ uvicorn[standard]
 python-dotenv
 pandas
 pydantic
+google-adk

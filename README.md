@@ -13,7 +13,15 @@ This copilot aggregates data from open-source and public APIs to build a multi-d
 
 ## Tech Stack
 - **Backend**: Python (FastAPI), Google GenAI SDK (Gemini)
-- **Frontend**: React + Vite, Vanilla CSS
+- **Frontend**: Vanilla HTML5, CSS3, Javascript (ApexCharts, html2pdf.js)
 
 ## Getting Started
-Detailed setup instructions will be added as implementation progresses.
+1. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. Start the FastAPI server:
+   ```bash
+   python -m app.main
+   ```
+3. Access the web dashboard at `http://127.0.0.1:8000/`.
