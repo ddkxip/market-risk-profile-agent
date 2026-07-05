@@ -1,14 +1,38 @@
-from pydantic import BaseModel, Field
+import uuid
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
+
+def _is_valid_uuid4(val: str) -> bool:
+    try:
+        uuid.UUID(val, version=4)
+        return True
+    except ValueError:
+        return False
 
 class AnalysisRequest(BaseModel):
     ticker: str = Field(..., description="Stock ticker symbol (e.g., AAPL, MSFT, GOOGL)")
     company_name: Optional[str] = Field(None, description="Optional company name to aid search")
     session_id: Optional[str] = Field(None, description="Optional session ID to track history")
 
+    @field_validator('session_id')
+    @classmethod
+    def validate_session_id(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not _is_valid_uuid4(v):
+            raise ValueError("session_id must be a valid UUIDv4 string")
+        return v
+
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User's query or instruction to the agent")
     session_id: str = Field(..., description="Session identifier for message tracking")
+
+    @field_validator('session_id')
+    @classmethod
+    def validate_session_id(cls, v: str) -> str:
+        if not _is_valid_uuid4(v):
+            raise ValueError("session_id must be a valid UUIDv4 string")
+        return v
 
 class RiskFactor(BaseModel):
     category: str = Field(..., description="Category of risk (e.g., Financial, Regulatory, Operational, Competition)")

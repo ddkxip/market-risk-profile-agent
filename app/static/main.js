@@ -8,10 +8,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Initialize Session ID
+    // Cryptographically secure UUIDv4 generator
+    function generateUUIDv4() {
+        if (self.crypto && self.crypto.randomUUID) {
+            return self.crypto.randomUUID();
+        }
+        const array = new Uint8Array(16);
+        self.crypto.getRandomValues(array);
+        array[6] = (array[6] & 0x0f) | 0x40; // Set version to 4
+        array[8] = (array[8] & 0x3f) | 0x80; // Set variant to RFC 4122
+        const hex = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+        return [
+            hex.substring(0, 8),
+            hex.substring(8, 12),
+            hex.substring(12, 16),
+            hex.substring(16, 20),
+            hex.substring(20, 32)
+        ].join('-');
+    }
+
+    // Initialize Session ID (Validate that it is a UUIDv4 to avoid API validation errors)
+    const uuidv4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     let sessionId = localStorage.getItem('alphainsight_session_id');
-    if (!sessionId) {
-        sessionId = 'session_' + Math.random().toString(36).substring(2, 15);
+    if (!sessionId || !uuidv4Regex.test(sessionId)) {
+        sessionId = generateUUIDv4();
         localStorage.setItem('alphainsight_session_id', sessionId);
     }
 

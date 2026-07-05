@@ -11,7 +11,8 @@ from app.models import (
     CompanyProfileResponse, 
     ComparisonRequest, 
     ComparisonResponse,
-    ChatRequest
+    ChatRequest,
+    _is_valid_uuid4
 )
 from app.agents.coordinator import CoordinatorAgent
 from app.agents.comparison_agent import ComparisonAgent
@@ -24,10 +25,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS for local development
+# Configure CORS
+origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
+origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+if "*" in origins:
+    origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify the exact domain
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,6 +99,11 @@ async def chat_copilot(request: ChatRequest):
 # Chat Session History Retrieve Endpoint
 @app.get("/api/chat/history/{session_id}")
 async def get_chat_history(session_id: str):
+    if not _is_valid_uuid4(session_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session ID format. Must be a valid UUIDv4 string."
+        )
     try:
         db = SessionStore()
         history = db.get_history(session_id)
@@ -106,6 +117,11 @@ async def get_chat_history(session_id: str):
 # Clear Session Endpoint
 @app.delete("/api/chat/history/{session_id}")
 async def clear_chat_history(session_id: str):
+    if not _is_valid_uuid4(session_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session ID format. Must be a valid UUIDv4 string."
+        )
     try:
         db = SessionStore()
         db.clear_history(session_id)

@@ -146,7 +146,7 @@ coordinator_adk_agent = Agent(
     description="Chief investment officer coordinating specialized financial analysts.",
     instruction="""
     You are the Chief Investment Officer. Your goal is to answer investor questions about stocks.
-    You will be provided with the active stock's compiled profile details in the message prefix: [Active Stock Profile Context for TICKER: ...].
+    You will be provided with the active stock's compiled profile details in the message prefix within `<active_stock_profile>` tags.
     If the investor asks about the active stock (e.g. its price, trend, 5-day forecast, SEC risks, sentiment, or news), you MUST answer directly using the provided profile context. Do NOT call your sub-agents in this case, as you already have the compiled data.
     If the investor asks about a different stock, or wants to run a new comparison, delegate to your sub-agents:
     - market_data_analyst for prices, trends, RSI, MACD, SMAs.
@@ -430,13 +430,13 @@ class CoordinatorAgent:
                     # Exclude large timeseries list to stay fast and cheap
                     if "historical_data" in profile_data:
                         del profile_data["historical_data"]
-                    prefix = f"[Active Stock Profile Context for {ticker}:\n{json.dumps(profile_data)}]\n"
+                    prefix = f"<active_stock_profile>\n[Active Stock Profile Context for {ticker}:\n{json.dumps(profile_data)}]\n</active_stock_profile>\n"
                 except Exception:
-                    prefix = f"[Active Stock Ticker context: {ticker}]\n"
+                    prefix = f"<active_stock_profile>\n[Active Stock Ticker context: {ticker}]\n</active_stock_profile>\n"
             else:
-                prefix = f"[Active Stock Ticker context: {ticker}]\n"
+                prefix = f"<active_stock_profile>\n[Active Stock Ticker context: {ticker}]\n</active_stock_profile>\n"
             
-        new_content = types.Content(role='user', parts=[types.Part(text=f"{prefix}{message}")])
+        new_content = types.Content(role='user', parts=[types.Part(text=f"{prefix}<investor_query>{message}</investor_query>")])
         final_text = "Sorry, I could not compile a response."
         
         async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=new_content):

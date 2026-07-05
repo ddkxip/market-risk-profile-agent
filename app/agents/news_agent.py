@@ -135,7 +135,9 @@ class NewsAgent:
         Calculate an overall sentiment rating (Bullish, Bearish, Neutral) and a score from -1.0 (very bearish) to 1.0 (very bullish).
         
         News Articles:
+        <news_headlines>
         {news_text}
+        </news_headlines>
         """
             
         response = client.models.generate_content(

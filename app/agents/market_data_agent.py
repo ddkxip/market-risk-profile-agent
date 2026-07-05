@@ -36,8 +36,14 @@ class MarketDataAgent:
         df['SMA_50'] = df['Close'].rolling(window=50).mean()
         df['SMA_200'] = df['Close'].rolling(window=200).mean()
 
-        sma_50_val = float(df['SMA_50'].iloc[-1]) if not pd.isna(df['SMA_50'].iloc[-1]) else current_price
-        sma_200_val = float(df['SMA_200'].iloc[-1]) if not pd.isna(df['SMA_200'].iloc[-1]) else current_price
+        # Ensure we can calculate indicators, raise errors if data is missing or NaN (no default values)
+        if pd.isna(df['SMA_50'].iloc[-1]):
+            raise ValueError(f"Could not calculate 50-day Simple Moving Average (SMA_50) for {ticker} due to insufficient price history.")
+        if pd.isna(df['SMA_200'].iloc[-1]):
+            raise ValueError(f"Could not calculate 200-day Simple Moving Average (SMA_200) for {ticker} due to insufficient price history.")
+        
+        sma_50_val = float(df['SMA_50'].iloc[-1])
+        sma_200_val = float(df['SMA_200'].iloc[-1])
 
         # Trend status based on current price and SMAs
         if current_price > sma_50_val > sma_200_val:
@@ -51,7 +57,9 @@ class MarketDataAgent:
 
         # RSI calculation
         df['RSI'] = self.calculate_rsi(df['Close'])
-        rsi_val = float(df['RSI'].iloc[-1]) if not pd.isna(df['RSI'].iloc[-1]) else 50.0
+        if pd.isna(df['RSI'].iloc[-1]):
+            raise ValueError(f"Could not calculate 14-day Relative Strength Index (RSI_14) for {ticker} due to insufficient price history.")
+        rsi_val = float(df['RSI'].iloc[-1])
 
         if rsi_val >= 70:
             rsi_status = "Overbought"

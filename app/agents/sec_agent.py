@@ -153,9 +153,9 @@ class SECAgent:
         Summarize the risks, categorize them, evaluate their severity (Low, Medium, High), and provide an overall risk rating.
         
         Filing Text:
-        ---
+        <sec_filing_text>
         {text}
-        ---
+        </sec_filing_text>
         """
         
         response = client.models.generate_content(
@@ -221,7 +221,6 @@ class SECAgent:
                 print(f"[{ticker}] Failed to load SEC cache: {ce}")
 
         # If not cached, fetch and compute
-        profile = None
         try:
             cik = self.get_cik_from_ticker(ticker)
             if not cik:
@@ -235,13 +234,8 @@ class SECAgent:
             profile.filing_url = filing_url
             
         except Exception as e:
-            print(f"SEC direct fetch failed for {ticker} ({e}). Falling back to Gemini knowledge base...")
-            profile = self.analyze_company_risks_fallback(ticker)
-            cik = self.get_cik_from_ticker(ticker)
-            if cik:
-                profile.filing_url = f"https://www.sec.gov/edgar/browse/?CIK={cik}"
-            else:
-                profile.filing_url = f"https://www.sec.gov/edgar/searchedgar/companysearch"
+            print(f"SEC direct fetch failed for {ticker} ({e}).")
+            raise ValueError(f"Failed to retrieve or parse SEC filing risk factors for {ticker}: {str(e)}")
 
         # Write to cache if profile was obtained
         if profile:

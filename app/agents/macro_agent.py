@@ -64,16 +64,22 @@ class MacroAgent:
         You are a senior macroeconomic analyst. Evaluate the macroeconomic headwinds and tailwinds facing {ticker} (Sector: {sector}, Industry: {industry}).
         
         Company Context:
+        <company_summary>
         {summary[:1000]}
+        </company_summary>
         
         Use the following LIVE macroeconomic indicators retrieved from the Federal Reserve Economic Data (FRED) website to ground your analysis:
         
         --- LIVE FRED INTEREST RATE DATA (FEDFUNDS) ---
+        <fedfunds_mcp_data>
         {fed_text[:2000] if fed_text else "No live Interest Rate data available."}
+        </fedfunds_mcp_data>
         Source URL: https://fred.stlouisfed.org/series/FEDFUNDS
         
         --- LIVE FRED INFLATION DATA (CPIAUCSL) ---
+        <cpi_mcp_data>
         {cpi_text[:2000] if cpi_text else "No live Inflation data available."}
+        </cpi_mcp_data>
         Source URL: https://fred.stlouisfed.org/series/CPIAUCSL
         
         Ground your analysis of interest rates and inflation in these actual numbers.
