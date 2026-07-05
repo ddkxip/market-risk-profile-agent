@@ -21,6 +21,11 @@ from app.agents.news_agent import NewsAgent
 from app.agents.macro_agent import MacroAgent
 from app.agents.forecasting_agent import ForecastingAgent
 from app.session_store import SessionStore
+from app.skills.guardrails import (
+    ground_tool_output, append_disclaimer_and_flag_numbers, block_advice_requests,
+)
+from app.skills.validators import clamp_forecast
+
 
 # 1. Wrapper Function Tools for ADK Subagents
 market_data_agent = MarketDataAgent()
@@ -75,7 +80,8 @@ market_adk_agent = Agent(
     mode="single_turn",
     description="Analyzes stock price trends, RSI, MACD, and SMAs.",
     instruction="Use the get_market_technicals tool to retrieve technical indicators.",
-    tools=[get_market_technicals]
+    tools=[get_market_technicals],
+    after_tool_callback=ground_tool_output
 )
 
 sec_adk_agent = Agent(
@@ -83,7 +89,8 @@ sec_adk_agent = Agent(
     mode="single_turn",
     description="Extracts and reviews SEC filing risk factors and CIK mapping.",
     instruction="Use the get_sec_corporate_risks tool to analyze corporate risks.",
-    tools=[get_sec_corporate_risks]
+    tools=[get_sec_corporate_risks],
+    after_tool_callback=ground_tool_output
 )
 
 news_adk_agent = Agent(
@@ -91,7 +98,8 @@ news_adk_agent = Agent(
     mode="single_turn",
     description="Gathers news headlines and sentiment ratings.",
     instruction="Use the get_news_sentiment tool to retrieve recent stock developments.",
-    tools=[get_news_sentiment]
+    tools=[get_news_sentiment],
+    after_tool_callback=ground_tool_output
 )
 
 web_tools = McpToolset(
@@ -118,7 +126,8 @@ macro_adk_agent = Agent(
     Provide the exact figures you retrieved, and cite the FRED source URLs.
     Do NOT rely on prior training knowledge for current macro figures.
     """,
-    tools=[web_tools]
+    tools=[web_tools],
+    after_tool_callback=ground_tool_output
 )
 
 forecast_adk_agent = Agent(
@@ -126,7 +135,8 @@ forecast_adk_agent = Agent(
     mode="single_turn",
     description="Projects future stock prices using quantitative trends.",
     instruction="Use the get_stock_price_forecast tool to project 5-day price series.",
-    tools=[get_stock_price_forecast]
+    tools=[get_stock_price_forecast],
+    after_tool_callback=ground_tool_output
 )
 
 # 3. Root ADK Coordinator
@@ -147,7 +157,9 @@ coordinator_adk_agent = Agent(
     
     Synthesize findings into a cohesive, professional conversational reply. Refer to conversation history to maintain context.
     """,
-    sub_agents=[market_adk_agent, sec_adk_agent, news_adk_agent, macro_adk_agent, forecast_adk_agent]
+    sub_agents=[market_adk_agent, sec_adk_agent, news_adk_agent, macro_adk_agent, forecast_adk_agent],
+    before_model_callback=block_advice_requests,
+    after_model_callback=append_disclaimer_and_flag_numbers
 )
 
 class SynthesizedFields(BaseModel):
@@ -247,6 +259,12 @@ class CoordinatorAgent:
         (tech_data, historical_data), sec_data, sentiment_data, macro_data, forecast_data = await asyncio.gather(
             tech_future, sec_future, news_future, macro_future, forecast_future
         )
+
+        # Deterministically clamp the forecasted stock price series to +/- 25% daily move limit
+        if forecast_data and tech_data and hasattr(tech_data, "current_price") and tech_data.current_price:
+            forecast_data, repairs = clamp_forecast(forecast_data, tech_data.current_price)
+            if repairs:
+                print(f"[{ticker}] Grounding Validator: Clamped unrealistic forecast: {repairs}")
 
         company_name = custom_company_name or self.get_company_name(ticker)
 
@@ -362,6 +380,40 @@ class CoordinatorAgent:
                 content=types.Content(role=role, parts=[types.Part(text=msg['content'])]),
             )
             session.events.append(event)
+            
+        # Stash grounded numbers in the session state dictionary so they can be verified by the guardrail callback
+        grounded_numbers = []
+        if metadata.get("last_ticker"):
+            ticker = metadata["last_ticker"]
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            cache_file = os.path.join(base_dir, ".cache", "profiles", f"{ticker.lower()}_profile.json")
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, "r") as f:
+                        profile_data = json.load(f)
+                    
+                    # Core indicators
+                    curr_price = profile_data.get("technical_indicators", {}).get("current_price")
+                    if curr_price is not None:
+                        grounded_numbers.append(float(curr_price))
+                    
+                    rsi = profile_data.get("technical_indicators", {}).get("rsi_14")
+                    if rsi is not None:
+                        grounded_numbers.append(float(rsi))
+                    
+                    score = profile_data.get("sentiment_analysis", {}).get("score")
+                    if score is not None:
+                        grounded_numbers.append(float(score))
+                    
+                    # 5-day Forecast points
+                    for pt in profile_data.get("forecast", {}).get("points", []):
+                        if pt.get("price") is not None:
+                            grounded_numbers.append(float(pt["price"]))
+                except Exception as e:
+                    print(f"Error stashing grounded numbers: {e}")
+        
+        if grounded_numbers:
+            session.state["grounded_numbers"] = grounded_numbers
             
         runner = Runner(agent=self.root_adk_agent, app_name="alpha_insight", session_service=session_service)
         
