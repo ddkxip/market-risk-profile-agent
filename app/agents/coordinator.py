@@ -8,6 +8,9 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.events import Event
 from google.genai import types
+import sys
+from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
+from mcp import StdioServerParameters
 from pydantic import BaseModel, Field
 
 from app.config import get_gemini_client
@@ -91,12 +94,31 @@ news_adk_agent = Agent(
     tools=[get_news_sentiment]
 )
 
+web_tools = McpToolset(
+    connection_params=StdioConnectionParams(
+        server_params=StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "mcp_server_fetch"]
+        ),
+        timeout=30,
+    )
+)
+
 macro_adk_agent = Agent(
     name="macroeconomics_analyst",
-    mode="single_turn",
-    description="Summarizes sector-level macroeconomic factors.",
-    instruction="Use the get_macroeconomic_factors tool to check headwinds/tailwinds.",
-    tools=[get_macroeconomic_factors]
+    model="gemini-2.5-flash",
+    description="Grounds macroeconomic analysis in live web sources (like FRED) via MCP.",
+    instruction="""
+    Use the fetch tool to retrieve current macro indicators (FEDFUNDS, CPI, etc.) from the Federal Reserve Economic Data (FRED) website:
+    - FEDFUNDS (Interest Rates): https://fred.stlouisfed.org/series/FEDFUNDS
+    - CPI (Inflation): https://fred.stlouisfed.org/series/CPIAUCSL
+    
+    Fetch these pages to extract the latest interest rate and inflation figures.
+    Analyze how these current interest rates, inflation, and sector headwinds/tailwinds impact the company's sector.
+    Provide the exact figures you retrieved, and cite the FRED source URLs.
+    Do NOT rely on prior training knowledge for current macro figures.
+    """,
+    tools=[web_tools]
 )
 
 forecast_adk_agent = Agent(

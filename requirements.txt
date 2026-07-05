@@ -6,4 +6,5 @@ python-dotenv
 pandas
 pydantic
 google-adk
+mcp-server-fetch
 beautifulsoup4

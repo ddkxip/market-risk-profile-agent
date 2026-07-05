@@ -1,4 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Helper to turn URLs into clickable links
+    function linkify(text) {
+        if (!text) return "";
+        const urlRegex = /(https?:\/\/[^\s\)]+)/g;
+        return text.replace(urlRegex, function(url) {
+            return `<a href="${url}" target="_blank" class="fred-link" style="color: #818cf8; text-decoration: underline; font-weight: 500;">FRED Source</a>`;
+        });
+    }
+
     // Initialize Session ID
     let sessionId = localStorage.getItem('alphainsight_session_id');
     if (!sessionId) {
@@ -419,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h4>${factor.factor_name}</h4>
                     <span class="impact-badge">${factor.impact_level}</span>
                 </div>
-                <p>${factor.description}</p>
+                <p>${linkify(factor.description)}</p>
             `;
             macroContainer.appendChild(macroItem);
         });
