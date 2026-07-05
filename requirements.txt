@@ -6,3 +6,4 @@ python-dotenv
 pandas
 pydantic
 google-adk
+beautifulsoup4
