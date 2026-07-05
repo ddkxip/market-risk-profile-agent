@@ -185,24 +185,46 @@ class CoordinatorAgent:
 
     def resolve_ticker(self, query: str) -> str:
         """Attempts to resolve a company name query to a valid ticker using SEC tickers database (cached)."""
+        if not query:
+            return ""
+            
         query_clean = query.upper().strip()
-        if not query_clean:
-            return query
-            
-        if query_clean.isalpha() and 1 <= len(query_clean) <= 5:
-            return query_clean
-            
+        
+        # Remove common business suffixes to match title search
+        suffixes = [" INC.", " INC", " CORP.", " CORP", " CO.", " CO", " LTD.", " LTD", " CORPORATION", " INCORPORATED"]
+        for suffix in suffixes:
+            if query_clean.endswith(suffix):
+                query_clean = query_clean[:-len(suffix)].strip()
+                break
+
         try:
             from app.agents.sec_agent import load_sec_tickers
             headers = {"User-Agent": "MarketRiskAgent/1.0 (ddkxi@gemini-capstone.com)"}
             data = load_sec_tickers(headers)
-                
+            
+            # 1. First pass: exact match on ticker symbol
+            for company in data.values():
+                symbol = company.get('ticker', '').upper().strip()
+                if symbol == query_clean:
+                    return symbol
+                    
+            # 2. Second pass: prefix and substring match on company name (title)
+            best_match = None
             for company in data.values():
                 title = company.get('title', '').upper()
-                ticker_symbol = company.get('ticker', '').upper()
-                if query_clean in title or title in query_clean:
-                    print(f"[Resolver] Resolved '{query}' to ticker '{ticker_symbol}'")
-                    return ticker_symbol
+                symbol = company.get('ticker', '').upper()
+                
+                # Prefix match gets immediate preference (e.g. "APPLE" -> "AAPL" from "APPLE INC.")
+                if title.startswith(query_clean):
+                    print(f"[Resolver] Resolved '{query}' to prefix-matched ticker '{symbol}' (from '{title}')")
+                    return symbol
+                if query_clean in title:
+                    best_match = symbol
+                    
+            if best_match:
+                print(f"[Resolver] Resolved '{query}' to substring-matched ticker '{best_match}'")
+                return best_match
+                
         except Exception as e:
             print(f"Error in ticker resolver: {e}")
             
