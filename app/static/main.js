@@ -8,23 +8,33 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Cryptographically secure UUIDv4 generator
+    // Cryptographically secure UUIDv4 generator with safe HTTP/legacy fallback
     function generateUUIDv4() {
-        if (self.crypto && self.crypto.randomUUID) {
-            return self.crypto.randomUUID();
+        if (typeof self !== 'undefined' && self.crypto) {
+            if (self.crypto.randomUUID) {
+                return self.crypto.randomUUID();
+            }
+            if (self.crypto.getRandomValues) {
+                const array = new Uint8Array(16);
+                self.crypto.getRandomValues(array);
+                array[6] = (array[6] & 0x0f) | 0x40; // Set version to 4
+                array[8] = (array[8] & 0x3f) | 0x80; // Set variant to RFC 4122
+                const hex = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+                return [
+                    hex.substring(0, 8),
+                    hex.substring(8, 12),
+                    hex.substring(12, 16),
+                    hex.substring(16, 20),
+                    hex.substring(20, 32)
+                ].join('-');
+            }
         }
-        const array = new Uint8Array(16);
-        self.crypto.getRandomValues(array);
-        array[6] = (array[6] & 0x0f) | 0x40; // Set version to 4
-        array[8] = (array[8] & 0x3f) | 0x80; // Set variant to RFC 4122
-        const hex = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
-        return [
-            hex.substring(0, 8),
-            hex.substring(8, 12),
-            hex.substring(12, 16),
-            hex.substring(16, 20),
-            hex.substring(20, 32)
-        ].join('-');
+        // Fallback math-random generator (guarantees RFC-compliant UUIDv4 syntax)
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
     }
 
     // Initialize Session ID (Validate that it is a UUIDv4 to avoid API validation errors)
@@ -247,8 +257,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.detail || "Server error during analysis");
+                let errMsg = `Server error (Status: ${response.status})`;
+                try {
+                    const errData = await response.json();
+                    if (errData && errData.detail) {
+                        if (Array.isArray(errData.detail)) {
+                            errMsg = errData.detail.map(e => e.msg).join(", ");
+                        } else {
+                            errMsg = errData.detail;
+                        }
+                    }
+                } catch (e) {
+                    try {
+                        const text = await response.text();
+                        if (text && text.length < 200) {
+                            errMsg = text;
+                        }
+                    } catch (e2) {}
+                }
+                throw new Error(errMsg);
             }
 
             const data = await response.json();
@@ -288,8 +315,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.detail || "Server error during comparison");
+                let errMsg = `Server error (Status: ${response.status})`;
+                try {
+                    const errData = await response.json();
+                    if (errData && errData.detail) {
+                        if (Array.isArray(errData.detail)) {
+                            errMsg = errData.detail.map(e => e.msg).join(", ");
+                        } else {
+                            errMsg = errData.detail;
+                        }
+                    }
+                } catch (e) {
+                    try {
+                        const text = await response.text();
+                        if (text && text.length < 200) {
+                            errMsg = text;
+                        }
+                    } catch (e2) {}
+                }
+                throw new Error(errMsg);
             }
 
             const data = await response.json();
