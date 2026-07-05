@@ -47,17 +47,21 @@ class SessionStore:
         conn.close()
 
     def get_history(self, session_id: str, limit: int = 20) -> list[dict]:
-        """Retrieves message history for a session."""
+        """Retrieves message history for a session, returning the most recent messages in chronological order."""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
+        # Retrieve the latest messages first by auto-incrementing id (DESC)
         cursor.execute(
-            "SELECT role, content FROM session_messages WHERE session_id = ? ORDER BY timestamp ASC LIMIT ?",
+            "SELECT role, content FROM session_messages WHERE session_id = ? ORDER BY id DESC LIMIT ?",
             (session_id, limit)
         )
         rows = cursor.fetchall()
         conn.close()
-        return [{"role": r["role"], "content": r["content"]} for r in rows]
+        # Reverse them so they are chronologically ordered (oldest to newest)
+        history = [{"role": r["role"], "content": r["content"]} for r in rows]
+        history.reverse()
+        return history
 
     def update_metadata(self, session_id: str, last_ticker: str = None, prefs: dict = None):
         """Updates session-wide metadata such as the last analyzed ticker."""

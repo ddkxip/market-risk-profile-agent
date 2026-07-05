@@ -78,44 +78,6 @@ class SECAgent:
         }
         return fallbacks.get(ticker, None)
 
-    def fetch_recent_filing_url(self, cik: str) -> tuple[str, str, str]:
-        """Fetches the latest 10-K filing URL and metadata."""
-        url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-        req = urllib.request.Request(url, headers=self.headers)
-        
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            
-        recent_filings = data['filings']['recent']
-        
-        # Look for the most recent 10-K
-        idx = -1
-        for i, form in enumerate(recent_filings['form']):
-            if form == '10-K':
-                idx = i
-                break
-                
-        # If no 10-K found, try 10-Q
-        if idx == -1:
-            for i, form in enumerate(recent_filings['form']):
-                if form == '10-Q':
-                    idx = i
-                    break
-                    
-        if idx == -1:
-            raise ValueError(f"No 10-K or 10-Q filings found for CIK {cik}")
-            
-        accession = recent_filings['accessionNumber'][idx]
-        primary_doc = recent_filings['primaryDocument'][idx]
-        filing_date = recent_filings['filingDate'][idx]
-        form_type = recent_filings['form'][idx]
-        
-        # Format accession number without hyphens for the archive URL
-        accession_no_hyphen = accession.replace("-", "")
-        filing_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_no_hyphen}/{primary_doc}"
-        
-        return filing_url, form_type, filing_date
-
     def extract_risk_factors_text(self, url: str) -> str:
         """Downloads filing HTML, extracts text, and attempts to find Item 1A (Risk Factors)."""
         req = urllib.request.Request(url, headers=self.headers)
@@ -131,31 +93,71 @@ class SECAgent:
         text = re.sub(r'\s+', ' ', text)
         
         # Try to find "Item 1A. Risk Factors" or "Item 1A Risk Factors"
-        match = re.search(r'item\s+1a\.?\s+risk\s+factors', text, re.IGNORECASE)
-        if not match:
+        matches = list(re.finditer(r'item\s+1a\.?\s+risk\s+factors', text, re.IGNORECASE))
+        if not matches:
             # Try a broader search
-            match = re.search(r'risk\s+factors', text, re.IGNORECASE)
+            matches = list(re.finditer(r'risk\s+factors', text, re.IGNORECASE))
             
-        if match:
-            start_idx = match.start()
-            # Extract up to 60,000 characters from the match start to avoid hitting LLM limits
-            return text[start_idx:start_idx + 60000]
+        # ToC skipping: ignore matches in the first 8000 characters
+        substantive_match = None
+        for m in matches:
+            if m.start() > 8000:
+                substantive_match = m
+                break
+        if not substantive_match and matches:
+            substantive_match = matches[-1]
+            
+        if substantive_match:
+            start_idx = substantive_match.start()
+            # Find the next item to bound the text copy (e.g. Item 1B, Item 2)
+            end_match = re.search(r'item\s+(1b|2)\b', text[start_idx:], re.IGNORECASE)
+            if end_match:
+                end_idx = start_idx + end_match.start()
+                section_text = text[start_idx:end_idx].strip()
+                return section_text[:60000]
+            else:
+                return text[start_idx:start_idx + 60000]
             
         return text[:60000]
 
-    def analyze_risk_with_gemini(self, ticker: str, text: str, form_type: str, filing_date: str) -> RiskProfile:
-        """Sends extracted text to Gemini to parse into structured RiskProfile."""
+    def analyze_risk_with_gemini(self, ticker: str, k_text: str, k_date: str, q_text: str, q_date: str) -> RiskProfile:
+        """Sends extracted 10-K and/or 10-Q text to Gemini to parse into structured RiskProfile."""
         client = get_gemini_client()
         
-        prompt = f"""
-        You are an expert financial analyst. Analyze the following text extracted from {ticker}'s {form_type} SEC filing filed on {filing_date}.
-        Extract the core corporate risk factors mentioned in the filing.
-        Summarize the risks, categorize them, evaluate their severity (Low, Medium, High), and provide an overall risk rating.
+        filing_details_str = ""
+        filing_contents_str = ""
         
-        Filing Text:
-        <sec_filing_text>
-        {text}
-        </sec_filing_text>
+        if k_text:
+            filing_details_str += f"10-K filed on {k_date}"
+            filing_contents_str += f"""
+            --- ANNUAL 10-K RISK FACTORS (Filed: {k_date}) ---
+            <sec_10k_risk_text>
+            {k_text}
+            </sec_10k_risk_text>
+            """
+            
+        if q_text:
+            if filing_details_str:
+                filing_details_str += " and "
+            filing_details_str += f"10-Q filed on {q_date}"
+            filing_contents_str += f"""
+            --- QUARTERLY 10-Q RISK UPDATES (Filed: {q_date}) ---
+            <sec_10q_risk_text>
+            {q_text}
+            </sec_10q_risk_text>
+            """
+            
+        if not filing_contents_str:
+            raise ValueError(f"No risk text content available for Gemini analysis on {ticker}")
+            
+        prompt = f"""
+        You are an expert financial analyst. Analyze the following corporate risk information for {ticker} extracted from its recent SEC filings ({filing_details_str}).
+        Evaluate both the broad annual structural risks (from the 10-K) and any recent quarterly updates or material developments (from the 10-Q).
+        
+        Filing Texts:
+        {filing_contents_str}
+        
+        Summarize the risks, categorize them, evaluate their severity (Low, Medium, High), and provide an overall risk rating.
         """
         
         response = client.models.generate_content(
@@ -226,12 +228,53 @@ class SECAgent:
             if not cik:
                 raise ValueError(f"Could not resolve CIK for ticker {ticker}")
                 
-            filing_url, form_type, filing_date = self.fetch_recent_filing_url(cik)
-            print(f"Fetching SEC filing for {ticker} from {filing_url}...")
+            # Fetch CIK submissions JSON
+            url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+            req = urllib.request.Request(url, headers=self.headers)
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                
+            recent_filings = data['filings']['recent']
             
-            raw_text = self.extract_risk_factors_text(filing_url)
-            profile = self.analyze_risk_with_gemini(ticker, raw_text, form_type, filing_date)
-            profile.filing_url = filing_url
+            # Find the most recent 10-K and 10-Q indices
+            idx_k = -1
+            idx_q = -1
+            for i, form in enumerate(recent_filings['form']):
+                if form == '10-K' and idx_k == -1:
+                    idx_k = i
+                elif form == '10-Q' and idx_q == -1:
+                    idx_q = i
+                if idx_k != -1 and idx_q != -1:
+                    break
+                    
+            if idx_k == -1 and idx_q == -1:
+                raise ValueError(f"No 10-K or 10-Q filings found for CIK {cik}")
+                
+            # Helper to generate filing details
+            def get_filing_details(idx: int) -> tuple[str, str, str]:
+                accession = recent_filings['accessionNumber'][idx]
+                primary_doc = recent_filings['primaryDocument'][idx]
+                f_date = recent_filings['filingDate'][idx]
+                f_type = recent_filings['form'][idx]
+                accession_no_hyphen = accession.replace("-", "")
+                f_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_no_hyphen}/{primary_doc}"
+                return f_url, f_type, f_date
+
+            k_url, k_text, k_date = None, None, None
+            q_url, q_text, q_date = None, None, None
+            
+            if idx_k != -1:
+                k_url, _, k_date = get_filing_details(idx_k)
+                print(f"[{ticker}] Extracting 10-K filing from {k_url}...")
+                k_text = self.extract_risk_factors_text(k_url)
+                
+            if idx_q != -1:
+                q_url, _, q_date = get_filing_details(idx_q)
+                print(f"[{ticker}] Extracting 10-Q filing from {q_url}...")
+                q_text = self.extract_risk_factors_text(q_url)
+                
+            profile = self.analyze_risk_with_gemini(ticker, k_text, k_date, q_text, q_date)
+            profile.filing_url = q_url if q_url else k_url
             
         except Exception as e:
             print(f"SEC direct fetch failed for {ticker} ({e}).")

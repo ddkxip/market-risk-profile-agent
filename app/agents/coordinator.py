@@ -334,6 +334,13 @@ class CoordinatorAgent:
             
         context_str += f"""
         
+        --- MACROECONOMIC FACTORS ---
+        """
+        for factor in macro_data:
+            context_str += f"\n- [{factor.factor_name} | Impact: {factor.impact_level}] {factor.description}"
+            
+        context_str += f"""
+        
         --- FORECAST ---
         Forecast (Next 5 Days):
         """

@@ -33,6 +33,10 @@ class ComparisonAgent:
         # Query Gemini for comparative analysis
         client = get_gemini_client()
         
+        # Format macro factors string for comparison
+        macro_a_str = "\n".join([f"- [{f.factor_name} | Impact: {f.impact_level}] {f.description}" for f in profile_a.macro_factors])
+        macro_b_str = "\n".join([f"- [{f.factor_name} | Impact: {f.impact_level}] {f.description}" for f in profile_b.macro_factors])
+
         prompt = f"""
         You are a senior portfolio manager. Compare two companies:
         
@@ -42,6 +46,8 @@ class ComparisonAgent:
         Technical Trend: {profile_a.technical_indicators.trend_status} (RSI: {profile_a.technical_indicators.rsi_14})
         Overall Sentiment: {profile_a.sentiment_analysis.overall_sentiment} (Score: {profile_a.sentiment_analysis.score})
         Corporate Risk Level: {profile_a.risk_profile.overall_rating}
+        Macroeconomic Factors:
+        {macro_a_str}
         Executive Summary: {profile_a.overall_summary}
         
         --- COMPANY B ---
@@ -50,6 +56,8 @@ class ComparisonAgent:
         Technical Trend: {profile_b.technical_indicators.trend_status} (RSI: {profile_b.technical_indicators.rsi_14})
         Overall Sentiment: {profile_b.sentiment_analysis.overall_sentiment} (Score: {profile_b.sentiment_analysis.score})
         Corporate Risk Level: {profile_b.risk_profile.overall_rating}
+        Macroeconomic Factors:
+        {macro_b_str}
         Executive Summary: {profile_b.overall_summary}
         
         Perform a thorough side-by-side comparison:
