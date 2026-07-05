@@ -184,7 +184,7 @@ class CoordinatorAgent:
             return ticker
 
     def resolve_ticker(self, query: str) -> str:
-        """Attempts to resolve a company name query to a valid ticker using SEC tickers database (cached)."""
+        """Attempts to resolve a company name query to a valid ticker using SEC tickers database and Gemini fallback."""
         if not query:
             return ""
             
@@ -202,31 +202,46 @@ class CoordinatorAgent:
             headers = {"User-Agent": "MarketRiskAgent/1.0 (ddkxi@gemini-capstone.com)"}
             data = load_sec_tickers(headers)
             
-            # 1. First pass: exact match on ticker symbol
+            # 1. First pass: exact match on ticker symbol (instant local hit)
             for company in data.values():
                 symbol = company.get('ticker', '').upper().strip()
                 if symbol == query_clean:
                     return symbol
                     
-            # 2. Second pass: prefix and substring match on company name (title)
-            best_match = None
+            # 2. Second pass: exact match on company name (instant local hit)
             for company in data.values():
-                title = company.get('title', '').upper()
-                symbol = company.get('ticker', '').upper()
-                
-                # Prefix match gets immediate preference (e.g. "APPLE" -> "AAPL" from "APPLE INC.")
-                if title.startswith(query_clean):
-                    print(f"[Resolver] Resolved '{query}' to prefix-matched ticker '{symbol}' (from '{title}')")
+                title = company.get('title', '').upper().strip()
+                symbol = company.get('ticker', '').upper().strip()
+                if title == query_clean:
+                    print(f"[Resolver] Resolved '{query}' to exact title matched ticker '{symbol}'")
                     return symbol
-                if query_clean in title:
-                    best_match = symbol
-                    
-            if best_match:
-                print(f"[Resolver] Resolved '{query}' to substring-matched ticker '{best_match}'")
-                return best_match
-                
         except Exception as e:
-            print(f"Error in ticker resolver: {e}")
+            print(f"Error in initial ticker resolver: {e}")
+
+        # 3. Third pass: Smart Gemini Resolver fallback (resolves colloquial and fuzzy queries)
+        try:
+            client = get_gemini_client()
+            prompt = f"""
+            You are a stock symbol resolver. Map the following user query representing a company name to its standard, primary US stock ticker symbol (e.g., Apple -> AAPL, JPMorgan -> JPM, Bank of America -> BAC, Google -> GOOGL, Chase -> JPM).
+            If the query is already a valid stock ticker, return it.
+            
+            User Query: {query}
+            
+            Return ONLY the uppercase ticker symbol (e.g., JPM). If you cannot resolve it to any valid public US stock ticker, return the original query.
+            Do not include any punctuation, explanation, or additional text.
+            """
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config={'temperature': 0.0}
+            )
+            resolved = response.text.strip().upper()
+            resolved_clean = "".join(c for c in resolved if c.isalnum())
+            if resolved_clean and len(resolved_clean) <= 5:
+                print(f"[Resolver] Gemini resolved colloquial name '{query}' to ticker '{resolved_clean}'")
+                return resolved_clean
+        except Exception as le:
+            print(f"Error in Gemini ticker resolver fallback: {le}")
             
         return query_clean
 
