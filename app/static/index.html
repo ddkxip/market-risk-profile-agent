@@ -10,6 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/static/logo.png">
     <!-- CSS -->
     <link rel="stylesheet" href="/static/style.css?v=1.1.0">
     <!-- Chart.js and ApexCharts for visualizations -->
@@ -20,7 +22,7 @@
         <!-- Sidebar / Brand -->
         <aside class="sidebar">
             <div class="brand">
-                <i class="fa-solid fa-brain-circuit brand-icon"></i>
+                <img src="/static/logo.png" class="brand-logo" alt="AlphaInsight Logo">
                 <div class="brand-text">
                     <h1>AlphaInsight</h1>
                     <span>AI Trading & Risk Copilot</span>
@@ -142,6 +144,15 @@
                     </div>
                     <h3 id="loader-status">Spawning Agents...</h3>
                     <p>Fetching SEC documents, calculating technical indicators, and reading news headlines.</p>
+                    
+                    <!-- Loader Trivia / Quotes Card -->
+                    <div class="loader-trivia-card">
+                        <i class="fa-solid fa-lightbulb trivia-icon"></i>
+                        <div class="trivia-content">
+                            <span class="trivia-label">Market Wisdom & Trivia:</span>
+                            <p id="loader-trivia">"The stock market is designed to transfer money from the Active to the Patient." — Warren Buffett</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 

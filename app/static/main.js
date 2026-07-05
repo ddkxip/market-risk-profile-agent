@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const welcomeScreen = document.getElementById('welcome-screen');
     const loadingScreen = document.getElementById('loading-screen');
     const loaderStatus = document.getElementById('loader-status');
+    const loaderTrivia = document.getElementById('loader-trivia');
     const dashboardContainer = document.getElementById('dashboard-container');
     const comparisonContainer = document.getElementById('comparison-container');
     const apiStatus = document.getElementById('api-status');
@@ -207,13 +208,29 @@ document.addEventListener('DOMContentLoaded', () => {
         "Market Data Agent: Downloading historical price data...",
         "Market Data Agent: Calculating RSI and MACD crossovers...",
         "SEC Agent: Mapping ticker to Central Index Key (CIK)...",
-        "SEC Agent: Fetching latest 10-K from SEC EDGAR...",
-        "SEC Agent: Extracting Item 1A Corporate Risk Factors...",
+        "SEC Agent: Fetching latest filings from SEC EDGAR...",
+        "SEC Agent: Parsing 10-K and 10-Q Item 1A Risk Factors...",
         "News Agent: Fetching Google News RSS search feed...",
         "News Agent: Sentiment-scoring headlines with Google Gemini...",
         "Macroeconomics Agent: Analyzing sector-specific headwinds...",
         "Coordinator Agent: Synthesizing profiles with Gemini...",
         "Finalizing investor reports..."
+    ];
+
+    const loaderTriviaQuotes = [
+        '"The stock market is designed to transfer money from the Active to the Patient." — Warren Buffett',
+        '"In the short run, the market is a voting machine but in the long run, it is a weighing machine." — Benjamin Graham',
+        '"The individual investor should act consistently as an investor and not as a speculator." — Benjamin Graham',
+        '"The most important quality for an investor is temperament, not intellect." — Warren Buffett',
+        '"An investment in knowledge pays the best interest." — Benjamin Franklin',
+        'Did you know? The Amsterdam Stock Exchange, established in 1602 by the Dutch East India Company, is considered the oldest stock exchange in the world.',
+        'Did you know? The bull and bear market terms originate from how the animals attack: bulls swipe up, bears swipe down.',
+        'Did you know? The Dow Jones Industrial Average was created in 1896 by Charles Dow and Edward Jones.',
+        'Agent Status: Macro Agent is analyzing interest rates and inflation indices via FRED MCP integration...',
+        'Agent Status: SEC Agent is scanning 10-K and 10-Q filings, skipping the Table of Contents, and extracting Item 1A...',
+        'Agent Status: News Agent is fetching the latest Google News headlines and performing sentiment analysis...',
+        'Agent Status: Market Agent is computing MACD, RSI (14), and dynamic moving average crossovers...',
+        'Agent Status: Forecasting Agent is running predictive models to project the stock price for the next 5 days...'
     ];
 
     function startLoadingAnimation(isComparing = false) {
@@ -225,6 +242,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let statusIdx = 0;
         loaderStatus.innerText = isComparing ? "Comparing companies side-by-side..." : loadingStatuses[statusIdx];
         
+        let triviaIdx = Math.floor(Math.random() * loaderTriviaQuotes.length);
+        loaderTrivia.innerText = loaderTriviaQuotes[triviaIdx];
+        loaderTrivia.style.opacity = 1;
+        
         loadingInterval = setInterval(() => {
             if (isComparing) {
                 loaderStatus.innerText = "Gemini is performing side-by-side comparative synthesis...";
@@ -232,6 +253,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusIdx = (statusIdx + 1) % loadingStatuses.length;
                 loaderStatus.innerText = loadingStatuses[statusIdx];
             }
+            
+            // Rotate trivia/quotes
+            triviaIdx = (triviaIdx + 1) % loaderTriviaQuotes.length;
+            loaderTrivia.style.opacity = 0;
+            setTimeout(() => {
+                loaderTrivia.innerText = loaderTriviaQuotes[triviaIdx];
+                loaderTrivia.style.opacity = 1;
+            }, 300);
         }, 3000);
     }
 

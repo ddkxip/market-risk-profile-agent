@@ -78,6 +78,14 @@ body {
     filter: drop-shadow(0 0 8px var(--accent-glow));
 }
 
+.brand-logo {
+    width: 2.2rem;
+    height: 2.2rem;
+    object-fit: contain;
+    filter: drop-shadow(0 0 8px var(--accent-glow));
+    border-radius: 6px;
+}
+
 .brand-text h1 {
     font-family: var(--font-heading);
     font-size: 1.5rem;
@@ -777,6 +785,65 @@ body {
 
 .loader span:nth-child(3) {
     animation-delay: -0.2s;
+}
+
+/* Loader Trivia / Wisdom Card */
+.loader-trivia-card {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--card-border);
+    padding: 1.25rem;
+    border-radius: 12px;
+    max-width: 500px;
+    margin: 2.5rem auto 0 auto;
+    text-align: left;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    animation: pulseGlow 3s infinite alternate ease-in-out;
+}
+
+.trivia-icon {
+    font-size: 1.75rem;
+    color: #fbbf24; /* Warm bulb color */
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.4));
+    flex-shrink: 0;
+}
+
+.trivia-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.trivia-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#loader-trivia {
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+@keyframes pulseGlow {
+    0% {
+        border-color: var(--card-border);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+    100% {
+        border-color: rgba(99, 102, 241, 0.2);
+        box-shadow: 0 4px 24px rgba(99, 102, 241, 0.08);
+    }
 }
 
 /* Helpers */
