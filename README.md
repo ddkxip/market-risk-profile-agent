@@ -79,6 +79,15 @@ graph TD
 * **Prompt Injection Defense**: Input validation filters out systemic prompt commands to avoid altering coordinator instructions.
 * **Non-Advice Boundaries**: Agent output filters block requests for specific buy/sell recommendations or financial planning, appending a mandatory risk disclaimer to all outputs.
 
+### 6.1. Custom Capstone Skill Integration: Guardrails & Validators
+We developed and integrated two custom skill modules to enforce safety, alignment, and security constraints at runtime:
+1. **[guardrails.py](file:///c:/Users/ddkxi/OneDrive/Documents/$HOMEagy2-projectsmy-first-project/market-risk-profile-agent/app/skills/guardrails.py)**:
+   * **`block_advice_requests`**: Validates user inputs prior to LLM submission. If it detects requests for direct investment advice, asset allocations, or specific buy/sell tips, it interceptively blocks the run, returning a safe compliance response.
+   * **`append_disclaimer_and_flag_numbers`**: A post-processing callback that parses generated summaries, verifies that all quoted financial percentages/metrics are grounded in the source data, and appends a standard regulatory risk disclosure.
+   * **`ground_tool_output`**: Acts as an intermediary verification layer that checks tool responses (e.g., yfinance quotes, SEC texts) for structure and correctness before passing them to the coordinator agent, preventing the LLM from hallucinating data on API failures.
+2. **[validators.py](file:///c:/Users/ddkxi/OneDrive/Documents/$HOMEagy2-projectsmy-first-project/market-risk-profile-agent/app/skills/validators.py)**:
+   * **`clamp_forecast`**: A validation filter that ensures quantitative forecast figures do not contain anomalous values (e.g., negative stock prices or runaway infinity growth rates), clamping them to standard mathematical bounds.
+
 ---
 
 ## 7. Installation & Local Execution
