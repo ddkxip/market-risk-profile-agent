@@ -158,6 +158,7 @@ class SECAgent:
         {filing_contents_str}
         
         Summarize the risks, categorize them, evaluate their severity (Low, Medium, High), and provide an overall risk rating.
+        IMPORTANT: You must identify and list at least 3 distinct key risk factors in the 'factors' list. Do not leave the 'factors' list empty.
         """
         
         response = client.models.generate_content(
@@ -179,6 +180,7 @@ class SECAgent:
         prompt = f"""
         You are an expert financial analyst. Provide a detailed risk profile for {ticker} based on your internal knowledge of the company's recent SEC filings, competitive landscape, regulatory exposures, and operational challenges.
         Make sure the rating and risk factors are up-to-date as of 2026.
+        IMPORTANT: You must identify and list at least 3 distinct key risk factors in the 'factors' list. Do not leave the 'factors' list empty.
         """
         
         response = client.models.generate_content(
