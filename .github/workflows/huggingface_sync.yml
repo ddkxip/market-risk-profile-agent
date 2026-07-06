@@ -9,7 +9,7 @@ jobs:
   sync-to-hub:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           lfs: true
@@ -17,4 +17,4 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git push --force https://ddkxip:$HF_TOKEN@huggingface.co/spaces/ddkxip/alpha-insight-copilot main
+          git push --force https://ddkxip:$HF_TOKEN@huggingface.co/spaces/ddkxip/alpha-insight-copilot HEAD:refs/heads/main
