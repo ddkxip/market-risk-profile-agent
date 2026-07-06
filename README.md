@@ -38,42 +38,51 @@ AlphaInsight falls under the **Agents for Business** track. It solves a real-wor
 | **Deployability** | Deployed as a Vertex AI Reasoning Engine on GCP and containerized via Docker for public hosting on Hugging Face Spaces. |
 | **Agent skills (Agents CLI)** | Built using ADK `adk deploy` packaging and verified via automated python evals. |
 
----
-
 ## 5. System Architecture & Workflow
 
-AlphaInsight implements a **hybrid agent architecture** that optimizes both execution latency and conversational flexibility. 
+AlphaInsight implements a **hybrid agent architecture** designed to optimize both data retrieval latency and conversational reasoning:
 
-When a user requests a stock analysis, a **Deterministic Parallel Research Orchestrator** in FastAPI queries all five analysts in parallel. Once this grounded context is compiled, it is injected into the **ADK Portfolio Coordinator and Runner session** for follow-up conversational QA.
+1. **Deterministic Parallel Research Orchestration (`/api/analyze` & `/api/compare`)**:
+   * FastAPI spins up a deterministic orchestrator that queries 5 specialized services in parallel to minimize network wait times (reducing profile compilation from minutes to under 30 seconds).
+   * Live data is retrieved from external sources: Market Technicals via `yfinance`, SEC Filings via EDGAR, News headlines via RSS, Macroeconomic indicators via MCP (FRED), and Forecasts via quantitative Holt-T modeling.
+   * Grounded results are merged, saved in the local JSON cache, and returned as a structured profile report.
+2. **Dynamic Agentic Conversational Interface (`/api/chat`)**:
+   * Subsequent chat queries are routed to the **ADK Portfolio Coordinator** running in a stateful `Runner` session.
+   * The coordinator automatically loads the active single or comparison stock profiles from the local cache and injects them directly into the conversation context.
+   * This allows the chatbot to instantly reference all technical, corporate risk, and macroeconomic figures in the chat history, making the QA session fully context-aware.
 
 ```
-                        ┌─────────────────────┐
-                        │     Web Client      │
-                        └─────────┬───────────┘
-                                  │
-                        ┌─────────▼───────────┐
-                        │      FastAPI        │
-                        └──────┬───────┬──────┘
-                               │       │
-             /api/analyze      │       │ /api/chat
-                               │       │
-          ┌────────────────────▼─┐   ┌─▼────────────────────┐
-          │ Deterministic Parallel│   │ ADK Portfolio         │
-          │ Research Orchestrator │   │ Coordinator + Runner  │
-          └───────────┬──────────┘   └──────────┬───────────┘
-                      │                         │
-          ┌───────────┼───────────┐    Dynamic sub-agent
-          ▼           ▼           ▼    delegation
-       Market        SEC        News            │
-       Service     Service     Service           ▼
-          │           │           │       ADK Specialists
-          ├──── Macro/MCP ─────────┤
-          └──── Forecasting ────────┘
-                      │
-                      ▼
-            Grounded Profile Context
-                      │
-                      └──────► ADK conversational follow-up
+                                  ┌──────────────────┐
+                                  │   Web Frontend   │
+                                  └────────┬─────────┘
+                                           │
+                        ┌──────────────────┴──────────────────┐
+                        │      FastAPI Backend Web Server     │
+                        └────────┬───────────────────┬────────┘
+                                 │                   │
+                   POST /api/analyze           POST /api/chat
+                                 │                   │
+            ┌────────────────────▼─────┐   ┌─────────▼────────────────────┐
+            │  Deterministic Parallel  │   │  ADK Portfolio Coordinator   │
+            │   Research Orchestrator  │   │      (Runner Session)        │
+            └────────────┬─────────────┘   └─────────┬──────────────┬─────┘
+                         │                           │              │
+        ┌─────┬─────┬────┼─────┬─────┐               │       Load Active Context
+        │     │     │    │     │     │      Inject Multi-Stock     (Single/Compare)
+     Market  SEC   News Macro Forecast        Context in Chat       │
+     Data  Filings RSS  FRED   Holt-T        (Pushed to Agent)      │
+      (yf)  (gov) (XML) (MCP)  (Math)                │              │
+        │     │     │    │     │                     │              ▼
+        └─────┼─────┼────┼─────┼─────┘               │       ┌──────────────┐
+              │     │    │     │                     │       │ Local Cache  │
+              ▼     ▼    ▼     ▼                     │       │ .cache/profiles│
+            Grounded Stock Context                   │       └──────▲───────┘
+                     │                               ▼              │
+                     │                        ADK specialists       │
+                     ├──────────────────► (sentiment, forecasting,  │
+                     │                      market indicator, etc.) │
+                     ▼                                              │
+              [Save to Cache] ──────────────────────────────────────┘
 ```
 
 ### Agent Responsibilities & Tool Mapping
