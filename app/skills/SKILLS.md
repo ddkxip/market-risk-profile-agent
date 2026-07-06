@@ -67,5 +67,4 @@ agent = Agent(
 - Guardrails **detect and constrain**; they do not eliminate hallucination.
 - `ungrounded_numbers` is a heuristic and can raise false positives (e.g. a year
   like 2026) — it flags for review rather than deleting.
-- The forecast remains model-generated; `clamp_forecast` bounds it but does not
-  make it accurate. A deterministic baseline projection is recommended future work.
+- The forecast is calculated using a deterministic Holt projection model; `clamp_forecast` bounds the projection to ensure mathematical consistency while Gemini provides the qualitative commentary.

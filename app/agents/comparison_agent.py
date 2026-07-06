@@ -8,7 +8,7 @@ from app.agents.coordinator import CoordinatorAgent
 
 class ComparativeFields(BaseModel):
     comparative_summary: str = Field(..., description="Side-by-side comparative summary of the two companies")
-    better_investment: str = Field(..., description="Bottom-line risk-adjusted comparison and investment recommendation")
+    comparative_risk_reward_outlook: str = Field(..., description="Relative risk-reward comparison and trade-offs. No personal buy/sell recommendation.")
 
 class ComparisonAgent:
     def __init__(self):
@@ -64,7 +64,7 @@ class ComparisonAgent:
         1. Compare their relative technical momentum and news sentiments.
         2. Contrast their corporate risk profiles (extracted from SEC filings) and macroeconomic exposure.
         3. Write a comparative_summary (150-200 words) summarizing key points of comparison.
-        4. Write a better_investment recommendation (100-150 words) explaining which stock represents a better risk-reward opportunity for investors under current conditions and why.
+        4. Write a comparative_risk_reward_outlook analysis (100-150 words). Explain the relative trade-offs, circumstances under which each company may be more or less attractive, and key uncertainties. Do not issue a personalized buy/sell recommendation.
         """
 
         response = await asyncio.to_thread(
@@ -84,6 +84,6 @@ class ComparisonAgent:
             profile_a=profile_a,
             profile_b=profile_b,
             comparative_summary=synthesis.comparative_summary,
-            better_investment=synthesis.better_investment,
+            comparative_risk_reward_outlook=synthesis.comparative_risk_reward_outlook,
             generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         )

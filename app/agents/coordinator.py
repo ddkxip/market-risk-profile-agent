@@ -13,7 +13,7 @@ from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
 from mcp import StdioServerParameters
 from pydantic import BaseModel, Field
 
-from app.config import get_gemini_client
+from app.config import get_gemini_client, get_safe_cache_path
 from app.models import CompanyProfileResponse, Projections
 from app.agents.market_data_agent import MarketDataAgent
 from app.agents.sec_agent import SECAgent
@@ -260,9 +260,7 @@ class CoordinatorAgent:
         
         # Check cache
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        cache_dir = os.path.join(base_dir, ".cache", "profiles")
-        os.makedirs(cache_dir, exist_ok=True)
-        cache_file = os.path.join(cache_dir, f"{ticker.lower()}_profile.json")
+        cache_file = get_safe_cache_path(os.path.join(base_dir, ".cache", "profiles"), ticker, "_profile.json")
         
         # Cache duration: 2 hours (7200 seconds)
         if os.path.exists(cache_file):
@@ -430,7 +428,7 @@ class CoordinatorAgent:
         if metadata.get("last_ticker"):
             ticker = metadata["last_ticker"]
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            cache_file = os.path.join(base_dir, ".cache", "profiles", f"{ticker.lower()}_profile.json")
+            cache_file = get_safe_cache_path(os.path.join(base_dir, ".cache", "profiles"), ticker, "_profile.json")
             if os.path.exists(cache_file):
                 try:
                     with open(cache_file, "r") as f:
@@ -466,7 +464,7 @@ class CoordinatorAgent:
         if metadata.get("last_ticker"):
             ticker = metadata["last_ticker"]
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            cache_file = os.path.join(base_dir, ".cache", "profiles", f"{ticker.lower()}_profile.json")
+            cache_file = get_safe_cache_path(os.path.join(base_dir, ".cache", "profiles"), ticker, "_profile.json")
             if os.path.exists(cache_file):
                 try:
                     with open(cache_file, "r") as f:

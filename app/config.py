@@ -39,3 +39,31 @@ def get_gemini_client():
         "or running 'gcloud auth application-default login' and setting GOOGLE_GENAI_USE_VERTEXAI=true."
     )
 
+import re
+from pathlib import Path
+
+TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,9}$")
+
+def validate_resolved_ticker(ticker: str) -> str:
+    ticker = ticker.upper().strip()
+    if not TICKER_RE.fullmatch(ticker):
+        raise ValueError("Unable to resolve input to a valid stock ticker")
+    return ticker
+
+def get_safe_cache_path(base_cache_dir: str, ticker: str, suffix: str) -> str:
+    validated_ticker = validate_resolved_ticker(ticker)
+    safe_key = validated_ticker.replace(".", "_").replace("-", "_").lower()
+    
+    # Resolve target directory and file path to absolute paths
+    target_dir = Path(base_cache_dir).resolve()
+    # Ensure directory exists
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_file = (target_dir / f"{safe_key}{suffix}").resolve()
+    
+    # Assert that the resolved path is strictly inside the target directory (path traversal check)
+    if target_dir not in target_file.parents:
+        raise ValueError("Path traversal attempt detected via ticker parameter")
+        
+    return str(target_file)
+
+

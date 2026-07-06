@@ -2,9 +2,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper to turn URLs into clickable links
     function linkify(text) {
         if (!text) return "";
-        const urlRegex = /(https?:\/\/[^\s\)]+)/g;
-        return text.replace(urlRegex, function(url) {
-            return `<a href="${url}" target="_blank" class="fred-link" style="color: #818cf8; text-decoration: underline; font-weight: 500;">FRED Source</a>`;
+        // Escape HTML to prevent XSS
+        const escaped = text.replace(/[&<>'"]/g, tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag));
+        const urlRegex = /(https?:\/\/[^\s\)<>]+)/g;
+        return escaped.replace(urlRegex, function(url) {
+            const cleanUrl = url.replace(/["']/g, ''); // strip quotes
+            return `<a href="${cleanUrl}" target="_blank" class="fred-link" style="color: #818cf8; text-decoration: underline; font-weight: 500;">FRED Source</a>`;
         });
     }
 
@@ -486,24 +495,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sentColor = item.sentiment.toLowerCase().includes('positive') ? 'sentiment-bullish' :
                                   (item.sentiment.toLowerCase().includes('negative') ? 'sentiment-bearish' : 'sentiment-neutral');
                 
-                const headlineHtml = item.link 
-                    ? `<a href="${item.link}" target="_blank" class="news-item-title-link">${item.headline}</a>` 
-                    : item.headline;
-
-                newsItem.innerHTML = `
-                    <div class="news-meta">
-                        <span>${item.source} • ${item.date}</span>
-                        <span class="impact-badge ${sentColor}">${item.sentiment}</span>
-                    </div>
-                    <h4>${headlineHtml}</h4>
-                    <div class="news-takeaway">
-                        <strong>Takeaway:</strong> ${item.takeaway}
-                    </div>
-                `;
+                const metaDiv = document.createElement('div');
+                metaDiv.className = 'news-meta';
+                
+                const sourceSpan = document.createElement('span');
+                sourceSpan.textContent = `${item.source} • ${item.date}`;
+                
+                const sentimentSpan = document.createElement('span');
+                sentimentSpan.className = `impact-badge ${sentColor}`;
+                sentimentSpan.textContent = item.sentiment;
+                
+                metaDiv.appendChild(sourceSpan);
+                metaDiv.appendChild(sentimentSpan);
+                newsItem.appendChild(metaDiv);
+                
+                const headlineH4 = document.createElement('h4');
+                if (item.link) {
+                    const cleanUrl = item.link.replace(/["']/g, '');
+                    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+                        const linkA = document.createElement('a');
+                        linkA.href = cleanUrl;
+                        linkA.target = '_blank';
+                        linkA.rel = 'noopener noreferrer';
+                        linkA.className = 'news-item-title-link';
+                        linkA.textContent = item.headline;
+                        headlineH4.appendChild(linkA);
+                    } else {
+                        headlineH4.textContent = item.headline;
+                    }
+                } else {
+                    headlineH4.textContent = item.headline;
+                }
+                newsItem.appendChild(headlineH4);
+                
+                const takeawayDiv = document.createElement('div');
+                takeawayDiv.className = 'news-takeaway';
+                
+                const strong = document.createElement('strong');
+                strong.textContent = 'Takeaway: ';
+                takeawayDiv.appendChild(strong);
+                
+                const takeawayText = document.createTextNode(item.takeaway);
+                takeawayDiv.appendChild(takeawayText);
+                
+                newsItem.appendChild(takeawayDiv);
                 newsContainer.appendChild(newsItem);
             });
         } else {
-            newsContainer.innerHTML = '<p class="text-muted">No recent news headlines analyzed.</p>';
+            const p = document.createElement('p');
+            p.className = 'text-muted';
+            p.textContent = 'No recent news headlines analyzed.';
+            newsContainer.appendChild(p);
         }
 
         // Macro factors
@@ -586,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('compare-badge-b').innerText = profileB.ticker;
         document.getElementById('compare-timestamp').innerText = data.generated_at;
         document.getElementById('compare-summary').innerText = data.comparative_summary;
-        document.getElementById('compare-recommendation').innerText = data.better_investment;
+        document.getElementById('compare-recommendation').innerText = data.comparative_risk_reward_outlook;
         
         // Table Headers Labels
         document.getElementById('comp-label-a').innerText = profileA.ticker;
@@ -689,24 +731,69 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sentColor = item.sentiment.toLowerCase().includes('positive') ? 'sentiment-bullish' :
                                   (item.sentiment.toLowerCase().includes('negative') ? 'sentiment-bearish' : 'sentiment-neutral');
                 
-                const headlineHtml = item.link 
-                    ? `<a href="${item.link}" target="_blank" class="news-item-title-link" style="font-size: 0.9rem;">${item.headline}</a>` 
-                    : `<span style="font-size: 0.9rem;">${item.headline}</span>`;
-
-                newsItem.innerHTML = `
-                    <div class="news-meta" style="margin-bottom: 0.25rem;">
-                        <span style="font-size: 0.75rem;">${item.source} • ${item.date}</span>
-                        <span class="impact-badge ${sentColor}" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;">${item.sentiment}</span>
-                    </div>
-                    <h4 style="font-size: 0.9rem; margin-bottom: 0.25rem;">${headlineHtml}</h4>
-                    <div class="news-takeaway" style="font-size: 0.8rem; padding: 0.4rem; border-radius: 6px; background: rgba(255,255,255,0.02);">
-                        <strong>Takeaway:</strong> ${item.takeaway}
-                    </div>
-                `;
+                const metaDiv = document.createElement('div');
+                metaDiv.className = 'news-meta';
+                metaDiv.style.marginBottom = '0.25rem';
+                
+                const sourceSpan = document.createElement('span');
+                sourceSpan.style.fontSize = '0.75rem';
+                sourceSpan.textContent = `${item.source} • ${item.date}`;
+                
+                const sentimentSpan = document.createElement('span');
+                sentimentSpan.className = `impact-badge ${sentColor}`;
+                sentimentSpan.style.padding = '0.15rem 0.4rem';
+                sentimentSpan.style.fontSize = '0.7rem';
+                sentimentSpan.textContent = item.sentiment;
+                
+                metaDiv.appendChild(sourceSpan);
+                metaDiv.appendChild(sentimentSpan);
+                newsItem.appendChild(metaDiv);
+                
+                const headlineH4 = document.createElement('h4');
+                headlineH4.style.fontSize = '0.9rem';
+                headlineH4.style.marginBottom = '0.25rem';
+                if (item.link) {
+                    const cleanUrl = item.link.replace(/["']/g, '');
+                    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+                        const linkA = document.createElement('a');
+                        linkA.href = cleanUrl;
+                        linkA.target = '_blank';
+                        linkA.rel = 'noopener noreferrer';
+                        linkA.className = 'news-item-title-link';
+                        linkA.style.fontSize = '0.9rem';
+                        linkA.textContent = item.headline;
+                        headlineH4.appendChild(linkA);
+                    } else {
+                        headlineH4.textContent = item.headline;
+                    }
+                } else {
+                    headlineH4.textContent = item.headline;
+                }
+                newsItem.appendChild(headlineH4);
+                
+                const takeawayDiv = document.createElement('div');
+                takeawayDiv.className = 'news-takeaway';
+                takeawayDiv.style.fontSize = '0.8rem';
+                takeawayDiv.style.padding = '0.4rem';
+                takeawayDiv.style.borderRadius = '6px';
+                takeawayDiv.style.background = 'rgba(255,255,255,0.02)';
+                
+                const strong = document.createElement('strong');
+                strong.textContent = 'Takeaway: ';
+                takeawayDiv.appendChild(strong);
+                
+                const takeawayText = document.createTextNode(item.takeaway);
+                takeawayDiv.appendChild(takeawayText);
+                
+                newsItem.appendChild(takeawayDiv);
                 container.appendChild(newsItem);
             });
         } else {
-            container.innerHTML = '<p class="text-muted" style="font-size: 0.85rem;">No recent news headlines available.</p>';
+            const p = document.createElement('p');
+            p.className = 'text-muted';
+            p.style.fontSize = '0.85rem';
+            p.textContent = 'No recent news headlines available.';
+            container.appendChild(p);
         }
     }
 
@@ -783,7 +870,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let md = `# Comparative Investment Report: ${profileA.ticker} vs ${profileB.ticker}\n`;
         md += `Generated on: ${data.generated_at}\n\n`;
         md += `## 1. Gemini Comparison Summary\n${data.comparative_summary}\n\n`;
-        md += `## 2. Investment Recommendation\n${data.better_investment}\n\n`;
+        md += `## 2. Comparative Risk-Reward Outlook\n${data.comparative_risk_reward_outlook}\n\n`;
         md += `| Metric | ${profileA.ticker} | ${profileB.ticker} |\n`;
         md += `| --- | --- | --- |\n`;
         md += `| **Company Name** | ${profileA.company_name} | ${profileB.company_name} |\n`;

@@ -29,10 +29,11 @@ AlphaInsight falls under the **Agents for Business** track. It solves a real-wor
 
 ## 4. Key Capstone Concept Mapping
 
-| Key Concept | Implementation Details |
+| Key Concept | Where & How Demonstrated |
 | :--- | :--- |
 | **Agent / Multi-agent system (ADK)** | Orchestrated via Google ADK (`Agent`, `Runner`, `App`). Implements a Chief Investment Officer (`portfolio_coordinator`) routing tasks to 5 specialized sub-agents. |
 | **MCP Server** | Implements the **Model Context Protocol (MCP)** via the `mcp-server-fetch` tool, allowing the Macroeconomics Agent to scrape live FRED tables in real-time. |
+| **Antigravity** | Entire project developed and iterated using Google Antigravity; development workflow demonstrated in the capstone video. |
 | **Security features** | Strict Pydantic v2 validation, secure UUIDv4 session management, path-traversal prevention, prompt injection filtering, and automatic fail-safes (no synthetic data fallback). |
 | **Deployability** | Deployed as a Vertex AI Reasoning Engine on GCP and containerized via Docker for public hosting on Hugging Face Spaces. |
 | **Agent skills (Agents CLI)** | Built using ADK `adk deploy` packaging and verified via automated python evals. |
@@ -41,26 +42,38 @@ AlphaInsight falls under the **Agents for Business** track. It solves a real-wor
 
 ## 5. System Architecture & Workflow
 
-```mermaid
-graph TD
-    User([User / UI Client]) -->|Query Ticker| API[FastAPI Server]
-    API -->|Session ID| Coordinator[portfolio_coordinator Agent]
-    
-    Coordinator --> Market[market_data_analyst]
-    Coordinator --> SEC[sec_filing_analyst]
-    Coordinator --> News[news_sentiment_analyst]
-    Coordinator --> Macro[macroeconomics_analyst]
-    Coordinator --> Forecast[forecasting_analyst]
+AlphaInsight implements a **hybrid agent architecture** that optimizes both execution latency and conversational flexibility. 
 
-    Market -->|yfinance| MarketData[(Market Technicals)]
-    SEC -->|SEC EDGAR| SECData[(10-K & 10-Q Filings)]
-    News -->|Google News RSS| NewsData[(RSS Headlines)]
-    Macro -->|MCP Fetch| FRED[(FRED Interest & Inflation)]
-    Forecast -->|Quantitative Engine| ForecastData[(5-Day Projections)]
-    
-    Coordinator -->|Synthesize Summary & Projections| Synthesized[Synthesized Profile]
-    Synthesized -->|JSON Response| API
-    API -->|Interactive Dashboard| User
+When a user requests a stock analysis, a **Deterministic Parallel Research Orchestrator** in FastAPI queries all five analysts in parallel. Once this grounded context is compiled, it is injected into the **ADK Portfolio Coordinator and Runner session** for follow-up conversational QA.
+
+```
+                        ┌─────────────────────┐
+                        │     Web Client      │
+                        └─────────┬───────────┘
+                                  │
+                        ┌─────────▼───────────┐
+                        │      FastAPI        │
+                        └──────┬───────┬──────┘
+                               │       │
+             /api/analyze      │       │ /api/chat
+                               │       │
+          ┌────────────────────▼─┐   ┌─▼────────────────────┐
+          │ Deterministic Parallel│   │ ADK Portfolio         │
+          │ Research Orchestrator │   │ Coordinator + Runner  │
+          └───────────┬──────────┘   └──────────┬───────────┘
+                      │                         │
+          ┌───────────┼───────────┐    Dynamic sub-agent
+          ▼           ▼           ▼    delegation
+       Market        SEC        News            │
+       Service     Service     Service           ▼
+          │           │           │       ADK Specialists
+          ├──── Macro/MCP ─────────┤
+          └──── Forecasting ────────┘
+                      │
+                      ▼
+            Grounded Profile Context
+                      │
+                      └──────► ADK conversational follow-up
 ```
 
 ### Agent Responsibilities & Tool Mapping
@@ -81,11 +94,11 @@ graph TD
 
 ### 6.1. Custom Capstone Skill Integration: Guardrails & Validators
 We developed and integrated two custom skill modules to enforce safety, alignment, and security constraints at runtime:
-1. **[guardrails.py](file:///c:/Users/ddkxi/OneDrive/Documents/$HOMEagy2-projectsmy-first-project/market-risk-profile-agent/app/skills/guardrails.py)**:
+1. **[guardrails.py](app/skills/guardrails.py)**:
    * **`block_advice_requests`**: Validates user inputs prior to LLM submission. If it detects requests for direct investment advice, asset allocations, or specific buy/sell tips, it interceptively blocks the run, returning a safe compliance response.
    * **`append_disclaimer_and_flag_numbers`**: A post-processing callback that parses generated summaries, verifies that all quoted financial percentages/metrics are grounded in the source data, and appends a standard regulatory risk disclosure.
    * **`ground_tool_output`**: Acts as an intermediary verification layer that checks tool responses (e.g., yfinance quotes, SEC texts) for structure and correctness before passing them to the coordinator agent, preventing the LLM from hallucinating data on API failures.
-2. **[validators.py](file:///c:/Users/ddkxi/OneDrive/Documents/$HOMEagy2-projectsmy-first-project/market-risk-profile-agent/app/skills/validators.py)**:
+2. **[validators.py](app/skills/validators.py)**:
    * **`clamp_forecast`**: A validation filter that ensures quantitative forecast figures do not contain anomalous values (e.g., negative stock prices or runaway infinity growth rates), clamping them to standard mathematical bounds.
 
 ---
@@ -93,7 +106,7 @@ We developed and integrated two custom skill modules to enforce safety, alignmen
 ## 7. Installation & Local Execution
 
 ### Prerequisites
-* Python 3.10+
+* Python 3.11+
 * Git
 * A Google Gemini API Key or GCP Project configured with Application Default Credentials (ADC).
 

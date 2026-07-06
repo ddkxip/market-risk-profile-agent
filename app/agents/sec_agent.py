@@ -5,7 +5,7 @@ import os
 import time
 from bs4 import BeautifulSoup
 from google import genai
-from app.config import get_gemini_client
+from app.config import get_gemini_client, get_safe_cache_path
 from app.models import RiskProfile, RiskFactor
 
 def load_sec_tickers(headers: dict) -> dict:
@@ -200,11 +200,9 @@ class SECAgent:
 
     def get_risk_profile(self, ticker: str) -> RiskProfile:
         """Main entry point to retrieve risk profile."""
-        # Resolve cache path
+        # Resolve cache path using secure get_safe_cache_path helper
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        cache_dir = os.path.join(base_dir, ".cache", "sec")
-        os.makedirs(cache_dir, exist_ok=True)
-        cache_file = os.path.join(cache_dir, f"{ticker.lower()}_profile.json")
+        cache_file = get_safe_cache_path(os.path.join(base_dir, ".cache", "sec"), ticker, "_profile.json")
         
         # Try loading from cache
         if os.path.exists(cache_file):

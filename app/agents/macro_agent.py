@@ -85,7 +85,7 @@ class MacroAgent:
         Ground your analysis of interest rates and inflation in these actual numbers.
         Evaluate the impact of the following macro factors:
         1. Interest Rates / Central Bank Policy (Using the actual current Fed Funds Rate from FEDFUNDS. Cite the source URL: https://fred.stlouisfed.org/series/FEDFUNDS)
-        2. Inflation / Consumer Spending (Using the actual current CPI percentage or observation value from CPIAUCSL. Cite the source URL: https://fred.stlouisfed.org/series/CPIAUCSL)
+        2. Inflation / Consumer Spending (Using the actual current CPI index value from CPIAUCSL and referencing the computed YoY inflation percentage change. Cite the source URL: https://fred.stlouisfed.org/series/CPIAUCSL)
         3. Regulatory / Geopolitical changes (tariffs, supply chain shifts)
         4. Any other major factor highly specific to the {sector} sector.
         

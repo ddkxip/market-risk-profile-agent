@@ -114,5 +114,5 @@ class ComparisonResponse(BaseModel):
     profile_a: CompanyProfileResponse = Field(..., description="First company analysis profile")
     profile_b: CompanyProfileResponse = Field(..., description="Second company analysis profile")
     comparative_summary: str = Field(..., description="Detailed side-by-side comparative summary by Gemini")
-    better_investment: str = Field(..., description="Gemini's bottom-line risk-reward comparison and recommendation")
+    comparative_risk_reward_outlook: str = Field(..., description="Gemini's relative risk-reward comparison and trade-offs. No personal buy/sell recommendation.")
     generated_at: str = Field(..., description="Timestamp of when the comparison was generated")
