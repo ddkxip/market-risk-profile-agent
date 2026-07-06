@@ -146,6 +146,15 @@ async def compare_companies(request: ComparisonRequest):
             ticker_a=request.ticker_a,
             ticker_b=request.ticker_b
         )
+        # Save comparison session metadata if session_id is provided
+        if request.session_id and _is_valid_uuid4(request.session_id):
+            try:
+                db = SessionStore()
+                ticker_a_resolved = coordinator.resolve_ticker(request.ticker_a)
+                ticker_b_resolved = coordinator.resolve_ticker(request.ticker_b)
+                db.update_metadata(request.session_id, last_ticker=f"{ticker_a_resolved},{ticker_b_resolved}")
+            except Exception as se:
+                print(f"Failed to update comparison session metadata: {se}", file=sys.stderr)
         return comparison
     except Exception as e:
         print(f"Error during comparison: {e}", file=sys.stderr)

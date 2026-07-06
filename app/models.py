@@ -109,6 +109,7 @@ class ForecastData(BaseModel):
 class ComparisonRequest(BaseModel):
     ticker_a: str = Field(..., description="First stock ticker symbol")
     ticker_b: str = Field(..., description="Second stock ticker symbol")
+    session_id: Optional[str] = Field(None, description="Optional session ID to track comparison context in chat")
 
 class ComparisonResponse(BaseModel):
     profile_a: CompanyProfileResponse = Field(..., description="First company analysis profile")

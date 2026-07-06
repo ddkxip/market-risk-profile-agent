@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ ticker_a: tickerA, ticker_b: tickerB })
+                body: JSON.stringify({ ticker_a: tickerA, ticker_b: tickerB, session_id: sessionId })
             });
 
             if (!response.ok) {

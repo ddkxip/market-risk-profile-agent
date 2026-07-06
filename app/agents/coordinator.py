@@ -428,33 +428,34 @@ class CoordinatorAgent:
         # Stash grounded numbers in the session state dictionary so they can be verified by the guardrail callback
         grounded_numbers = []
         if metadata.get("last_ticker"):
-            ticker = metadata["last_ticker"]
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            cache_file = get_safe_cache_path(os.path.join(base_dir, ".cache", "profiles"), ticker, "_profile.json")
-            if os.path.exists(cache_file):
+            tickers = [t.strip() for t in metadata["last_ticker"].split(",") if t.strip()]
+            for ticker in tickers:
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 try:
-                    with open(cache_file, "r") as f:
-                        profile_data = json.load(f)
-                    
-                    # Core indicators
-                    curr_price = profile_data.get("technical_indicators", {}).get("current_price")
-                    if curr_price is not None:
-                        grounded_numbers.append(float(curr_price))
-                    
-                    rsi = profile_data.get("technical_indicators", {}).get("rsi_14")
-                    if rsi is not None:
-                        grounded_numbers.append(float(rsi))
-                    
-                    score = profile_data.get("sentiment_analysis", {}).get("score")
-                    if score is not None:
-                        grounded_numbers.append(float(score))
-                    
-                    # 5-day Forecast points
-                    for pt in profile_data.get("forecast", {}).get("points", []):
-                        if pt.get("price") is not None:
-                            grounded_numbers.append(float(pt["price"]))
+                    cache_file = get_safe_cache_path(os.path.join(base_dir, ".cache", "profiles"), ticker, "_profile.json")
+                    if os.path.exists(cache_file):
+                        with open(cache_file, "r") as f:
+                            profile_data = json.load(f)
+                        
+                        # Core indicators
+                        curr_price = profile_data.get("technical_indicators", {}).get("current_price")
+                        if curr_price is not None:
+                            grounded_numbers.append(float(curr_price))
+                        
+                        rsi = profile_data.get("technical_indicators", {}).get("rsi_14")
+                        if rsi is not None:
+                            grounded_numbers.append(float(rsi))
+                        
+                        score = profile_data.get("sentiment_analysis", {}).get("score")
+                        if score is not None:
+                            grounded_numbers.append(float(score))
+                        
+                        # 5-day Forecast points
+                        for pt in profile_data.get("forecast", {}).get("points", []):
+                            if pt.get("price") is not None:
+                                grounded_numbers.append(float(pt["price"]))
                 except Exception as e:
-                    print(f"Error stashing grounded numbers: {e}")
+                    print(f"Error stashing grounded numbers for {ticker}: {e}")
         
         if grounded_numbers:
             session.state["grounded_numbers"] = grounded_numbers
@@ -464,21 +465,28 @@ class CoordinatorAgent:
         # Prepend the active stock context to the prompt so the ADK agent knows what stock we are discussing
         prefix = ""
         if metadata.get("last_ticker"):
-            ticker = metadata["last_ticker"]
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            cache_file = get_safe_cache_path(os.path.join(base_dir, ".cache", "profiles"), ticker, "_profile.json")
-            if os.path.exists(cache_file):
+            tickers = [t.strip() for t in metadata["last_ticker"].split(",") if t.strip()]
+            profile_contexts = []
+            for ticker in tickers:
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 try:
-                    with open(cache_file, "r") as f:
-                        profile_data = json.load(f)
-                    # Exclude large timeseries list to stay fast and cheap
-                    if "historical_data" in profile_data:
-                        del profile_data["historical_data"]
-                    prefix = f"<active_stock_profile>\n[Active Stock Profile Context for {ticker}:\n{json.dumps(profile_data)}]\n</active_stock_profile>\n"
+                    cache_file = get_safe_cache_path(os.path.join(base_dir, ".cache", "profiles"), ticker, "_profile.json")
+                    if os.path.exists(cache_file):
+                        with open(cache_file, "r") as f:
+                            profile_data = json.load(f)
+                        # Exclude large timeseries list to stay fast and cheap
+                        if "historical_data" in profile_data:
+                            del profile_data["historical_data"]
+                        profile_contexts.append(f"Profile Context for {ticker}:\n{json.dumps(profile_data)}")
+                    else:
+                        profile_contexts.append(f"Ticker context: {ticker}")
                 except Exception:
-                    prefix = f"<active_stock_profile>\n[Active Stock Ticker context: {ticker}]\n</active_stock_profile>\n"
+                    profile_contexts.append(f"Ticker context: {ticker}")
+            
+            if len(tickers) > 1:
+                prefix = f"<active_stock_profiles>\n[Active Comparison Stock Profile Contexts:\n" + "\n\n".join(profile_contexts) + "]\n</active_stock_profiles>\n"
             else:
-                prefix = f"<active_stock_profile>\n[Active Stock Ticker context: {ticker}]\n</active_stock_profile>\n"
+                prefix = f"<active_stock_profile>\n[Active Stock Profile Context for {tickers[0]}:\n" + profile_contexts[0] + "]\n</active_stock_profile>\n"
             
         new_content = types.Content(role='user', parts=[types.Part(text=f"{prefix}<investor_query>{message}</investor_query>")])
         final_text = "Sorry, I could not compile a response."
