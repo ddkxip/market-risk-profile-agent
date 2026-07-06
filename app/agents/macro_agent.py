@@ -3,7 +3,7 @@ import sys
 import json
 import yfinance as yf
 from google import genai
-from app.config import get_gemini_client
+from app.config import get_gemini_client, generate_content_with_retry
 from app.models import MacroeconomicFactors
 from typing import List
 from mcp import ClientSession, StdioServerParameters
@@ -96,7 +96,8 @@ class MacroAgent:
         class MacroListContainer(BaseModel):
             factors: List[MacroeconomicFactors]
 
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
             config={

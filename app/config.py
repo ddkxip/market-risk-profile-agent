@@ -66,4 +66,25 @@ def get_safe_cache_path(base_cache_dir: str, ticker: str, suffix: str) -> str:
         
     return str(target_file)
 
+def generate_content_with_retry(client, model: str, contents, config=None, max_retries: int = 4, initial_delay: float = 2.0):
+    import time
+    delay = initial_delay
+    for attempt in range(max_retries):
+        try:
+            return client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=config
+            )
+        except Exception as e:
+            err_str = str(e).upper()
+            is_transient = "429" in err_str or "LIMIT" in err_str or "EXHAUSTED" in err_str or "QUOTA" in err_str or "TEMPORARY" in err_str or "503" in err_str or "500" in err_str
+            
+            if is_transient and attempt < max_retries - 1:
+                print(f"[Gemini API Retry] Attempt {attempt+1}/{max_retries} failed: {e}. Retrying in {delay}s...")
+                time.sleep(delay)
+                delay *= 2
+            else:
+                raise e
+
 

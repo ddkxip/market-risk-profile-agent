@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from google import genai
 from pydantic import BaseModel, Field
-from app.config import get_gemini_client
+from app.config import get_gemini_client, generate_content_with_retry
 from app.models import CompanyProfileResponse, ComparisonResponse
 from app.agents.coordinator import CoordinatorAgent
 
@@ -68,7 +68,8 @@ class ComparisonAgent:
         """
 
         response = await asyncio.to_thread(
-            client.models.generate_content,
+            generate_content_with_retry,
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
             config={

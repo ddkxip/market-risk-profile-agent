@@ -5,7 +5,7 @@ import os
 import time
 from bs4 import BeautifulSoup
 from google import genai
-from app.config import get_gemini_client, get_safe_cache_path
+from app.config import get_gemini_client, get_safe_cache_path, generate_content_with_retry
 from app.models import RiskProfile, RiskFactor
 
 def load_sec_tickers(headers: dict) -> dict:
@@ -161,7 +161,8 @@ class SECAgent:
         IMPORTANT: You must identify and list at least 3 distinct key risk factors in the 'factors' list. Do not leave the 'factors' list empty.
         """
         
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
             config={
@@ -183,7 +184,8 @@ class SECAgent:
         IMPORTANT: You must identify and list at least 3 distinct key risk factors in the 'factors' list. Do not leave the 'factors' list empty.
         """
         
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
             config={

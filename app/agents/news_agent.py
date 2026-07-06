@@ -5,7 +5,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import email.utils
 from google import genai
-from app.config import get_gemini_client
+from app.config import get_gemini_client, generate_content_with_retry
 from app.models import SentimentAnalysis, NewsSentimentItem
 
 class NewsAgent:
@@ -140,7 +140,8 @@ class NewsAgent:
         </news_headlines>
         """
             
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
             config={

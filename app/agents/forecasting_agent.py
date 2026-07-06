@@ -2,7 +2,7 @@ import yfinance as yf
 from datetime import datetime, timedelta
 import pandas as pd
 from google import genai
-from app.config import get_gemini_client
+from app.config import get_gemini_client, generate_content_with_retry
 from app.models import ForecastData, ForecastPoint
 
 class ForecastingAgent:
@@ -100,7 +100,8 @@ class ForecastingAgent:
         3. reasoning: Explain the quantitative model's projection. Discuss the trend direction, the smoothed level, historical support/resistance, and how recent momentum influenced the Holt's model.
         """
         
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
             config={

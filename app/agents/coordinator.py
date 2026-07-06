@@ -13,7 +13,7 @@ from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
 from mcp import StdioServerParameters
 from pydantic import BaseModel, Field
 
-from app.config import get_gemini_client, get_safe_cache_path
+from app.config import get_gemini_client, get_safe_cache_path, generate_content_with_retry
 from app.models import CompanyProfileResponse, Projections
 from app.agents.market_data_agent import MarketDataAgent
 from app.agents.sec_agent import SECAgent
@@ -230,7 +230,8 @@ class CoordinatorAgent:
             Return ONLY the uppercase ticker symbol (e.g., JPM). If you cannot resolve it to any valid public US stock ticker, return the original query.
             Do not include any punctuation, explanation, or additional text.
             """
-            response = client.models.generate_content(
+            response = generate_content_with_retry(
+                client=client,
                 model='gemini-2.5-flash',
                 contents=prompt,
                 config={'temperature': 0.0}
@@ -358,7 +359,8 @@ class CoordinatorAgent:
            - long_term: Long-term projection (12+ months).
         """
         
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt,
             config={
